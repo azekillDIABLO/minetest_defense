@@ -39,6 +39,9 @@ function mobs.default_prototype:on_step(dtime)
 	if self.pause_timer <= 0 then
 		if self.destination then
 			self:move(dtime, self.destination)
+			if vector.distance(self.object:getpos(), self.destination) < 1 then
+				self.destination = nil
+			end
 		else
 			self:move(dtime, self.object:getpos())
 		end
@@ -50,6 +53,10 @@ function mobs.default_prototype:on_step(dtime)
 		self:set_animation("fall", {"jump", "attack", "move_attack"})
 	end
 
+	if not defense:is_dark() then
+		-- self:damage(self.object:get_hp() * math.random() * 0.2 + 1)
+	end
+
 	self.timer = self.timer + dtime
 end
 
@@ -58,6 +65,14 @@ function mobs.default_prototype:on_punch(puncher, time_from_last_punch, tool_cap
 	local knockback = vector.multiply(dir, 45 / (1 + self.weight))
 	self.object:setvelocity(vector.add(self.object:getvelocity(), knockback))
 	self.pause_timer = 0.1
+end
+
+function mobs.default_prototype:damage(amount)
+	if self.object:get_hp() <= amount then
+		self.object:remove()
+	else
+		self.object:set_hp(self.object:get_hp() - amount)
+	end
 end
 
 function mobs.default_prototype:attack(obj)
@@ -74,30 +89,13 @@ function mobs.default_prototype:move(dtime, destination)
 end
 
 function mobs.default_prototype:hunt()
-	local p = self.object:getpos()
-	local nearest_player = nil
-	local nearest_dist = 999
-	for _,obj in ipairs(minetest.get_connected_players()) do
-		if obj:is_player() then
-			if nearest_player then 
-				local d = vector.distance(nearest_player:getpos(), p)
-				if d < nearest_dist then
-					nearest_player = obj
-					nearest_dist = d
-				end
-			else
-					nearest_player = obj
-					nearest_dist = vector.distance(obj:getpos(), p)
-			end
-		end
-	end
-
-	if nearest_player then
-		local nearest_pos = nearest_player:getpos()
+	local nearest = self:find_nearest_player()
+	if nearest.player then
+		local nearest_pos = nearest.player:getpos()
 		local dir = vector.direction(nearest_pos, self.object:getpos())
 		self.destination = vector.add(nearest_pos, vector.multiply(dir, self.attack_range/2))
-		if nearest_dist < self.attack_range then
-			self:do_attack(nearest_player)
+		if nearest.distance < self.attack_range then
+			self:do_attack(nearest.player)
 		end
 	end
 end
@@ -130,22 +128,22 @@ function mobs.default_prototype:is_standing()
 	if self.movement == "air" then
 		return false
 	end
-
-	local p = self.object:getpos()
-	p.y = p.y + self.collisionbox[2] - 0.5
-	local corners = {
-		vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[3]}),
-		vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[6]}),
-		vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[3]}),
-		vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[6]}),
-	}
-	for _,c in ipairs(corners) do
-		local node = minetest.get_node_or_nil(c)
-		if not node or minetest.registered_nodes[node.name].walkable and self.object:getvelocity().y == 0 then
-			return true
-		end
-	end
-	return false
+	return self.object:getvelocity().y == 0
+	-- local p = self.object:getpos()
+	-- p.y = p.y + self.collisionbox[2] - 0.5
+	-- local corners = {
+	-- 	vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[3]}),
+	-- 	vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[6]}),
+	-- 	vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[3]}),
+	-- 	vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[6]}),
+	-- }
+	-- for _,c in ipairs(corners) do
+	-- 	local node = minetest.get_node_or_nil(c)
+	-- 	if not node or minetest.registered_nodes[node.name].walkable and self.object:getvelocity().y == 0 then
+	-- 		return true
+	-- 	end
+	-- end
+	-- return false
 end
 
 function mobs.default_prototype:set_animation(name, inhibit)
@@ -166,6 +164,27 @@ function mobs.default_prototype:set_animation(name, inhibit)
 		self.current_animation_end = self.timer + (anim_prop.b - anim_prop.a - 1) / anim_prop.rate
 		self.object:set_animation({x=anim_prop.a, y=anim_prop.b}, anim_prop.rate, 0)
 	end
+end
+
+function mobs.default_prototype:find_nearest_player()
+	local p = self.object:getpos()
+	local nearest_player = nil
+	local nearest_dist = 999
+	for _,obj in ipairs(minetest.get_connected_players()) do
+		if obj:is_player() then
+			if nearest_player then 
+				local d = vector.distance(nearest_player:getpos(), p)
+				if d < nearest_dist then
+					nearest_player = obj
+					nearest_dist = d
+				end
+			else
+					nearest_player = obj
+					nearest_dist = vector.distance(obj:getpos(), p)
+			end
+		end
+	end
+	return {player=nearest_player, distance=nearest_dist}
 end
 
 mobs.move_method = {}
@@ -204,7 +223,6 @@ function mobs.move_method:air(dtime, destination)
 		self:set_animation("idle", {"attack", "move_attack"})
 	end
 end
-
 function mobs.move_method:ground(dtime, destination)
 	local delta = vector.subtract(destination, self.object:getpos())
 	delta.y = 0
@@ -252,7 +270,7 @@ function mobs.move_method:ground(dtime, destination)
 			p.y = p.y + self.collisionbox[2] + 0.5
 			local sx = self.collisionbox[4] - self.collisionbox[1]
 			local sz = self.collisionbox[6] - self.collisionbox[3]
-			local r = math.sqrt(sx*sx + sz*sz)
+			local r = (math.sqrt(sx*sx + sz*sz) + self.move_speed)/2 + 0.5
 			local node = minetest.get_node_or_nil(vector.add(p, vector.multiply(dir, r)))
 			if not node or minetest.registered_nodes[node.name].walkable then
 				jump = true

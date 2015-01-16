@@ -9,17 +9,26 @@ director.spawn_list = {
 		intensity_max = 0.9,
 		group_min = 1,
 		group_max = 1,
-		probability = 0.2,
+		probability = 0.1,
 		spawn_timer = 1.0,
 	},
 	{
 		name = "defense:unggoy",
 		intensity_min = 0.0,
 		intensity_max = 0.5,
-		group_min = 3,
-		group_max = 7,
+		group_min = 4,
+		group_max = 14,
 		probability = 0.5,
-		spawn_timer = 6.0,
+		spawn_timer = 9.0,
+	},
+	{
+		name = "defense:unggoy",
+		intensity_min = 0.0,
+		intensity_max = 0.0,
+		group_min = 16,
+		group_max = 16,
+		probability = 0.8,
+		spawn_timer = 9.0,
 	},
 	{
 		name = "defense:sarangay",
@@ -27,8 +36,8 @@ director.spawn_list = {
 		intensity_max = 0.5,
 		group_min = 1,
 		group_max = 1,
-		probability = 0.1,
-		spawn_timer = 10.0,
+		probability = 0.4,
+		spawn_timer = 8.0,
 	},
 }
 
@@ -46,24 +55,24 @@ function director:on_interval()
 	minetest.chat_send_all("Intensity: " .. self.intensity)
 
 	if self.cooldown_timer <= 0 then
-		if self:is_dark() or true then
+		if defense:is_dark() or true then
 			if math.random() < 1 - self.intensity then
 				if self:spawn_monsters() then
 					self.spawn_timer = 0
 				end
 			end
 		end
+
+		if self.intensity > 0.85 then
+			if self.intensity == 1 then
+				self.cooldown_timer = math.random(20, 45)
+			else
+				self.cooldown_timer = math.random(5, 10)
+			end
+		end
 	else
 		self.cooldown_timer = self.cooldown_timer - self.call_interval
 		minetest.chat_send_all("Cooldown: " .. self.cooldown_timer)
-	end
-
-	if self.intensity > 0.85 then
-		if self.intensity == 1 then
-			self.cooldown_timer = math.random(20, 45)
-		else
-			self.cooldown_timer = math.random(10, 20)
-		end
 	end
 
 	self.spawn_timer = self.spawn_timer + self.call_interval
@@ -186,20 +195,14 @@ function director:update_intensity()
 	local mob_count = self.mob_count
 
 	local delta =
-		  -0.2 * math.min(0.3, average_health - last_average_health)
-		+ 0.2 * (1 / average_health)
+		  -0.1 * math.min(0.3, average_health - last_average_health)
+		+ 0.3 * (1 / average_health - 0.1)
 		+ 0.01 * (mob_count - last_mob_count)
-		+ (self:is_dark() and 0.001 or -0.3)
 
 	last_average_health = average_health
 	last_mob_count = mob_count
 
 	self.intensity = math.max(0, math.min(1, self.intensity * self.intensity_decay + delta))
-end
-
-function director:is_dark()
-	local tod = minetest.get_timeofday()
-	return tod < 0.22 or tod > 0.8
 end
 
 director.last_call_time = 0

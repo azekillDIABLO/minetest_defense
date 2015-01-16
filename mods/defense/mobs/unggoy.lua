@@ -20,7 +20,7 @@ defense.mobs.register_mob("defense:unggoy", {
 	jump_height = 2,
 	attack_damage = 1,
 	attack_range = 1.5,
-	attack_interval = 0.8,
+	attack_interval = 0.6,
 
 	wander = false,
 
