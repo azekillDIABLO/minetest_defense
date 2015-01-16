@@ -1,10 +1,10 @@
-defense_mobs.register_mob("defense_mobs:unggoy", {
+defense.mobs.register_mob("defense:unggoy", {
 	hp_max = 1,
 	weight = 6,
 	collisionbox = {-0.4,-0.01,-0.4, 0.4,1.5,0.4},
 	visual_size = {x=2.5, y=2.5},
-	mesh = "defense_mobs_unggoy.b3d",
-	textures = {"defense_mobs_unggoy.png"},
+	mesh = "defense_unggoy.b3d",
+	textures = {"defense_unggoy.png"},
 	makes_footstep_sound = true,
 
 	animation = {
@@ -19,13 +19,9 @@ defense_mobs.register_mob("defense_mobs:unggoy", {
 	move_speed = 5,
 	jump_height = 2,
 	attack_damage = 1,
-	attack_interval = 0.5,
-
-	on_activate = function(self, staticdata)
-		self:hunt(70)
-	end,
+	attack_interval = 0.8,
 
 	on_step = function(self, dtime)
-		self:hunt(20)
+		self:hunt()
 	end,
 })

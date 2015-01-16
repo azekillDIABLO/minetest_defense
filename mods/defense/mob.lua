@@ -1,4 +1,7 @@
-defense_mobs.move_method = {
+defense.mobs = {}
+defense.mobs.gravity = -9.81
+
+defense.mobs.move_method = {
 	air = function(self, dtime, destination)
 		local delta = vector.subtract(destination, self.object:getpos())
 		local dist = vector.length(delta)
@@ -38,6 +41,7 @@ defense_mobs.move_method = {
 				t = math.pow(0.001, dtime)
 			else
 				t = 0.9
+				speed = speed * 0.9
 			end
 			local dir = vector.normalize(delta)
 			local v = self.object:getvelocity()
@@ -86,7 +90,7 @@ defense_mobs.move_method = {
 	end
 }
 
-function defense_mobs.register_mob(name, def)
+function defense.mobs.register_mob(name, def)
 	local prototype = {
 		-- minetest properties & defaults
 		physical = true,
@@ -100,7 +104,7 @@ function defense_mobs.register_mob(name, def)
 		move_speed = 1,
 		jump_height = 1,
 		armor = 100,
-		attack_range = 1,
+		attack_range = 1.5,
 		attack_damage = 1,
 		attack_interval = 1,
 
@@ -122,7 +126,7 @@ function defense_mobs.register_mob(name, def)
 	function prototype:on_activate(staticdata)
 		self.object:set_armor_groups({fleshy=self.armor})
 		if self.movement == "ground" then
-			self.object:setacceleration({x=0, y=defense_mobs.gravity, z=0})
+			self.object:setacceleration({x=0, y=defense.mobs.gravity, z=0})
 		end
 		self.timer = math.random() * 16
 
@@ -165,17 +169,17 @@ function defense_mobs.register_mob(name, def)
 	end
 
 	-- overridable
-	prototype.move = def.move or defense_mobs.move_method[prototype.movement]
+	prototype.move = def.move or defense.mobs.move_method[prototype.movement]
 
 	--
 	-- Methods
 	--
 
-	function prototype:hunt(radius)
+	function prototype:hunt()
 		local p = self.object:getpos()
 		local nearest_player = nil
-		local nearest_dist = radius + 1
-		for _,obj in ipairs(minetest.env:get_objects_inside_radius(p, radius)) do
+		local nearest_dist = 999
+		for _,obj in ipairs(minetest.get_connected_players()) do
 			if obj:is_player() then
 				if nearest_player then 
 					local d = vector.distance(nearest_player:getpos(), p)
@@ -216,7 +220,7 @@ function defense_mobs.register_mob(name, def)
 		if self:is_standing() then
 			direction = vector.normalize(direction)
 			local v = self.object:getvelocity()
-			v.y = math.sqrt(2 * -defense_mobs.gravity * (self.jump_height + 0.2))
+			v.y = math.sqrt(2 * -defense.mobs.gravity * (self.jump_height + 0.2))
 			v.x = direction.x * v.y
 			v.z = direction.z * v.y
 			self.object:setvelocity(v)
