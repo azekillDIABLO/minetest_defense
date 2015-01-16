@@ -6,7 +6,7 @@ director.spawn_list = {
 	{
 		name = "defense:unggoy",
 		intensity_min = 0.0,
-		intensity_max = 0.8,
+		intensity_max = 0.9,
 		group_min = 1,
 		group_max = 1,
 		probability = 0.2,
@@ -15,31 +15,57 @@ director.spawn_list = {
 	{
 		name = "defense:unggoy",
 		intensity_min = 0.0,
-		intensity_max = 0.4,
+		intensity_max = 0.5,
 		group_min = 3,
 		group_max = 7,
 		probability = 0.5,
-		spawn_timer = 7.0,
+		spawn_timer = 6.0,
+	},
+	{
+		name = "defense:sarangay",
+		intensity_min = 0.1,
+		intensity_max = 0.5,
+		group_min = 1,
+		group_max = 1,
+		probability = 0.1,
+		spawn_timer = 10.0,
 	},
 }
 
 director.mob_count = 0
-director.intensity = 0.0
-director.spawn_timer = 0
+director.spawn_timer = 600
+
+director.intensity = 0.5
+director.cooldown_timer = 3
 
 local last_average_health = 1.0
 local last_mob_count = 0
 
 function director:on_interval()
 	self:update_intensity()
-	minetest.debug("Intensity: " .. self.intensity)
-	if self:is_dark() then
-		if math.random() < 1 - self.intensity then
-			if self:spawn_monsters() then
-				self.spawn_timer = 0
+	minetest.chat_send_all("Intensity: " .. self.intensity)
+
+	if self.cooldown_timer <= 0 then
+		if self:is_dark() or true then
+			if math.random() < 1 - self.intensity then
+				if self:spawn_monsters() then
+					self.spawn_timer = 0
+				end
 			end
 		end
+	else
+		self.cooldown_timer = self.cooldown_timer - self.call_interval
+		minetest.chat_send_all("Cooldown: " .. self.cooldown_timer)
 	end
+
+	if self.intensity > 0.85 then
+		if self.intensity == 1 then
+			self.cooldown_timer = math.random(20, 45)
+		else
+			self.cooldown_timer = math.random(10, 20)
+		end
+	end
+
 	self.spawn_timer = self.spawn_timer + self.call_interval
 end
 
@@ -61,40 +87,17 @@ function director:spawn_monsters()
 
 	-- Determine group size
 	local intr = math.max(0, math.min(1, self.intensity + math.random() * 2 - 1))
-	local group_size = math.floor(monster.group_max + (monster.group_min - monster.group_max) * intr + 0.5)
+	local group_size = math.floor(0.5 + monster.group_max + (monster.group_min - monster.group_max) * intr)
 
-	-- Find the spawn location
-	local pos = {x=0, y=0, z=0}
-	local players = minetest.get_connected_players()
-	for _,p in ipairs(players) do
-		pos = vector.add(pos, p:getpos())
-	end
-	pos = vector.multiply(pos, #players)
-	local r = 30
-	local a = math.random() * 2 * math.pi
-	pos.x = pos.x + math.cos(a) * r
-	pos.z = pos.z + math.sin(a) * r
-	pos.y = pos.y + 10
-	local d = -1
-	local node = minetest.get_node_or_nil(pos)
-	if node and minetest.registered_nodes[node.name].walkable then
-		d = 1
-		pos.y = pos.y + 1
-	end
-	for i = pos.y, pos.y + 30 * d, d do
-		local top = {x=pos.x, y=pos.y+i, z=pos.z}
-		local bottom = {x=pos.x, y=pos.y+i-1, z=pos.z}
-		local node_top = minetest.get_node_or_nil(top)
-		local node_bottom = minetest.get_node_or_nil(bottom)
-		if node_bottom and node_top
-			and minetest.registered_nodes[node_bottom.name].walkable ~= minetest.registered_nodes[node_top.name].walkable then
-			pos.y = top.y
-			break
-		end
+	-- Find the spawn position
+	local pos = self:find_spawn_position()
+	if not pos then
+		minetest.chat_send_all("No spawn point found!")
+		return false
 	end
 
 	-- Spawn
-	minetest.debug("Spawn " .. group_size .. " " .. monster.name .. " at " .. minetest.pos_to_string(pos))
+	minetest.chat_send_all("Spawn " .. group_size .. " " .. monster.name .. " at " .. minetest.pos_to_string(pos))
 	self.mob_count = self.mob_count + group_size
 	repeat
 		minetest.after(group_size * (math.random() * 0.2), function()
@@ -102,7 +105,70 @@ function director:spawn_monsters()
 		end)
 		group_size = group_size - 1
 	until group_size <= 0
-	return trueD
+	return true
+end
+
+function director:find_spawn_position()
+	local players = minetest.get_connected_players()
+	if #players == 0 then
+		return nil
+	end
+	
+	local center = {x=0, y=0, z=0}
+	for _,p in ipairs(players) do
+		center = vector.add(center, p:getpos())
+	end
+	center = vector.multiply(center, #players)
+
+	local radii = {}
+	local points = {}
+	for _,p in ipairs(players) do
+		local pos = p:getpos()
+		local r = 10 + 20/(vector.distance(pos, center) + 1)
+		radii[p:get_player_name()] = r - 0.5
+		for j = 0, 6, 1 do
+			local a = math.random() * 2 * math.pi
+			pos.x = pos.x + math.cos(a) * r
+			pos.z = pos.z + math.sin(a) * r
+			pos.y = pos.y + 10
+			local d = -1
+			local node = minetest.get_node_or_nil(pos)
+			if node and minetest.registered_nodes[node.name].walkable then
+				d = 1
+				pos.y = pos.y + 1
+			end
+			for i = pos.y, pos.y + 40 * d, d do
+				local top = {x=pos.x, y=i, z=pos.z}
+				local bottom = {x=pos.x, y=i-1, z=pos.z}
+				local node_top = minetest.get_node_or_nil(top)
+				local node_bottom = minetest.get_node_or_nil(bottom)
+				if node_bottom and node_top
+					and minetest.registered_nodes[node_bottom.name].walkable ~= minetest.registered_nodes[node_top.name].walkable then
+					table.insert(points, top)
+					break
+				end
+			end
+			end
+	end
+
+	if #points == 0 then
+		return nil
+	end
+
+	local filtered = {}
+	for _,p in ipairs(players) do
+		local pos = p:getpos()
+		for _,o in ipairs(points) do
+			if vector.distance(pos, o) >= radii[p:get_player_name()] then
+				table.insert(filtered, o)
+			end
+		end
+	end
+
+	if #filtered > 0 then
+		return filtered[math.random(#filtered)]
+	end
+	return nil
 end
 
 function director:update_intensity()
@@ -120,9 +186,9 @@ function director:update_intensity()
 	local mob_count = self.mob_count
 
 	local delta =
-		  -0.2 * (average_health - last_average_health)
+		  -0.2 * math.min(0.3, average_health - last_average_health)
 		+ 0.2 * (1 / average_health)
-		+ 0.001 * (mob_count - last_mob_count)
+		+ 0.01 * (mob_count - last_mob_count)
 		+ (self:is_dark() and 0.001 or -0.3)
 
 	last_average_health = average_health

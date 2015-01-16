@@ -1,5 +1,5 @@
 defense.mobs.register_mob("defense:unggoy", {
-	hp_max = 1,
+	hp_max = 3,
 	weight = 6,
 	collisionbox = {-0.4,-0.01,-0.4, 0.4,1.5,0.4},
 	visual_size = {x=2.5, y=2.5},
@@ -19,9 +19,28 @@ defense.mobs.register_mob("defense:unggoy", {
 	move_speed = 5,
 	jump_height = 2,
 	attack_damage = 1,
+	attack_range = 1.5,
 	attack_interval = 0.8,
 
+	wander = false,
+
 	on_step = function(self, dtime)
-		self:hunt()
+		defense.mobs.default_prototype.on_step(self, dtime)
+		if self.wander then
+			if math.random() < 0.1 then
+				self.destination = vector.add(
+					self.object:getpos(),
+					{x=math.random(-10,10),y=0,z=math.random(-10,10)}
+				)
+			elseif math.random() < 0.1 then
+				self.wander = false
+			end
+		else
+			if math.random() < 0.05 then
+				self.wander = true
+			else
+				self:hunt()
+			end
+		end
 	end,
 })
