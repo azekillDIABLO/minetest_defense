@@ -1,3 +1,6 @@
+# Blender backups
+*.blend*
+
 ## Generic ignorable patterns and files
 *~
 .*.swp
