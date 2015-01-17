@@ -1,4 +1,8 @@
-# Blender backups
+# GIMP
+*.xcf
+
+# Blender
+*.blend
 *.blend*
 
 ## Generic ignorable patterns and files

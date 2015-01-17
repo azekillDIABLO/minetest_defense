@@ -1,6 +1,5 @@
 defense.mobs.register_mob("defense:unggoy", {
 	hp_max = 3,
-	weight = 6,
 	collisionbox = {-0.4,-0.01,-0.4, 0.4,1.5,0.4},
 	visual_size = {x=2.5, y=2.5},
 	mesh = "defense_unggoy.b3d",
@@ -16,6 +15,7 @@ defense.mobs.register_mob("defense:unggoy", {
 		move_attack = {a=100, b=113, rate=20},
 	},
 
+	mass = 4,
 	move_speed = 5,
 	jump_height = 2,
 	attack_damage = 1,

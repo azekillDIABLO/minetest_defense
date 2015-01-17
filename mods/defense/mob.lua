@@ -23,6 +23,7 @@ mobs.default_prototype = {
 	current_animation_end = 0,
 	destination = nil, -- position
 	last_attack_time = 0,
+	life_timer = 90,
 	pause_timer = 0,
 	timer = 0,
 }
@@ -36,10 +37,15 @@ function mobs.default_prototype:on_activate(staticdata)
 end
 
 function mobs.default_prototype:on_step(dtime)
+	local destination_distance = 0
+	if self.destination then
+		destination_distance = vector.distance(self.object:getpos(), self.destination)
+	end
+
 	if self.pause_timer <= 0 then
 		if self.destination then
 			self:move(dtime, self.destination)
-			if vector.distance(self.object:getpos(), self.destination) < 1 then
+			if destination_distance < 1 then
 				self.destination = nil
 			end
 		else
@@ -57,14 +63,22 @@ function mobs.default_prototype:on_step(dtime)
 		-- self:damage(self.object:get_hp() * math.random() * 0.2 + 1)
 	end
 
+	if self.life_timer <= 0 then
+		if destination_distance > 12 then
+			self.object:remove()
+		end
+	else
+		self.life_timer = self.life_timer - dtime
+	end
+
 	self.timer = self.timer + dtime
 end
 
 function mobs.default_prototype:on_punch(puncher, time_from_last_punch, tool_capabilities, dir)
 	dir.y = dir.y + 1
-	local knockback = vector.multiply(dir, 45 / (1 + self.weight))
+	local knockback = vector.multiply(vector.normalize(dir), 10 / (1 + self.mass))
 	self.object:setvelocity(vector.add(self.object:getvelocity(), knockback))
-	self.pause_timer = 0.1
+	self.pause_timer = 0.3
 end
 
 function mobs.default_prototype:damage(amount)
@@ -110,6 +124,7 @@ function mobs.default_prototype:do_attack(obj)
 			self:set_animation("attack")
 		end
 	end
+	self.life_timer = math.min(300, self.life_timer + 60)
 end
 
 function mobs.default_prototype:jump(direction)
@@ -128,22 +143,21 @@ function mobs.default_prototype:is_standing()
 	if self.movement == "air" then
 		return false
 	end
-	return self.object:getvelocity().y == 0
-	-- local p = self.object:getpos()
-	-- p.y = p.y + self.collisionbox[2] - 0.5
-	-- local corners = {
-	-- 	vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[3]}),
-	-- 	vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[6]}),
-	-- 	vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[3]}),
-	-- 	vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[6]}),
-	-- }
-	-- for _,c in ipairs(corners) do
-	-- 	local node = minetest.get_node_or_nil(c)
-	-- 	if not node or minetest.registered_nodes[node.name].walkable and self.object:getvelocity().y == 0 then
-	-- 		return true
-	-- 	end
-	-- end
-	-- return false
+	local p = self.object:getpos()
+	p.y = p.y + self.collisionbox[2] - 0.5
+	local corners = {
+		vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[3]}),
+		vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[6]}),
+		vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[3]}),
+		vector.add(p, {x=self.collisionbox[4], y=0, z=self.collisionbox[6]}),
+	}
+	for _,c in ipairs(corners) do
+		local node = minetest.get_node_or_nil(c)
+		if not node or minetest.registered_nodes[node.name].walkable and self.object:getvelocity().y == 0 then
+			return true
+		end
+	end
+	return false
 end
 
 function mobs.default_prototype:set_animation(name, inhibit)
@@ -202,7 +216,14 @@ function mobs.move_method:air(dtime, destination)
 
 	local speed = self.move_speed * math.max(0, math.min(1, 2 * dist - 0.5))
 	if speed > 0.01 then
-		local t = math.pow(0.1, dtime)
+		local t
+		local v = self.object:getvelocity()
+		if vector.length(v) < self.move_speed * 1.1 then
+			t = math.pow(0.1, dtime)
+		else
+			t = math.pow(0.9, dtime)
+			speed = speed * 0.9
+		end
 		self.object:setvelocity(vector.add(
 			vector.multiply(self.object:getvelocity(), t),
 			vector.multiply(vector.normalize(delta), speed * (1-t))
@@ -239,14 +260,14 @@ function mobs.move_method:ground(dtime, destination)
 	local speed = self.move_speed * math.max(0, math.min(1, 3 * dist - 0.5))
 	if speed > 0.01 then
 		local t
-		if self:is_standing() then
+		local v = self.object:getvelocity()
+		if self:is_standing() and vector.length(v) < self.move_speed * 2 then
 			t = math.pow(0.001, dtime)
 		else
-			t = 0.9
+			t = math.pow(0.9, dtime)
 			speed = speed * 0.9
 		end
 		local dir = vector.normalize(delta)
-		local v = self.object:getvelocity()
 		local v2 = vector.add(
 			vector.multiply(v, t),
 			vector.multiply(dir, speed * (1-t))
@@ -270,7 +291,7 @@ function mobs.move_method:ground(dtime, destination)
 			p.y = p.y + self.collisionbox[2] + 0.5
 			local sx = self.collisionbox[4] - self.collisionbox[1]
 			local sz = self.collisionbox[6] - self.collisionbox[3]
-			local r = (math.sqrt(sx*sx + sz*sz) + self.move_speed)/2 + 0.5
+			local r = math.sqrt(sx*sx + sz*sz)/2 + self.move_speed/3 + 0.5
 			local node = minetest.get_node_or_nil(vector.add(p, vector.multiply(dir, r)))
 			if not node or minetest.registered_nodes[node.name].walkable then
 				jump = true
