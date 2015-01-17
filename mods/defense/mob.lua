@@ -60,7 +60,7 @@ function mobs.default_prototype:on_step(dtime)
 	end
 
 	if not defense:is_dark() then
-		-- self:damage(self.object:get_hp() * math.random() * 0.2 + 1)
+		self:damage(self.object:get_hp() * math.random() + 1)
 	end
 
 	if self.life_timer <= 0 then

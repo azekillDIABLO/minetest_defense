@@ -55,7 +55,7 @@ function director:on_interval()
 	minetest.chat_send_all("Intensity: " .. self.intensity)
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() or true then
+		if defense:is_dark() then
 			if math.random() < 1 - self.intensity then
 				if self:spawn_monsters() then
 					self.spawn_timer = 0
