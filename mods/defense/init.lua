@@ -1,4 +1,5 @@
 defense = {}
+defense.debug = false
 
 local function dofile2(file)
 	dofile(minetest.get_modpath("defense") .. "/" .. file)
@@ -6,7 +7,7 @@ end
 
 function defense:is_dark()
 	local tod = minetest.get_timeofday()
-	return tod < 0.22 or tod > 0.8
+	return tod < 0.22 or tod > 0.8 or debug
 end
 
 dofile2("mob.lua")
