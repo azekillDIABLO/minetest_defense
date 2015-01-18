@@ -46,7 +46,9 @@ defense.mobs.register_mob("defense:sarangay", {
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
 		if self.charging then
-			self:hunt()
+			if self.charge_power > 1 then
+				self:hunt()
+			end
 
 			-- Break obstacles
 			local pos = self.object:getpos()
@@ -56,7 +58,7 @@ defense.mobs.register_mob("defense:sarangay", {
 			pos = vector.add(pos, vector.multiply(vector.normalize(v), 1.5))
 			local blocks = self:crash_blocks(pos, 4)
 			local entities = self:crash_entities(pos, 3)
-			self.charge_power = self.charge_power - blocks * 0.1 - entities * 0.01
+			self.charge_power = self.charge_power - blocks * 0.2 - entities * 0.05
 
 			if self.charge_power < 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < 1) then
 				self:set_charging_state(false)
@@ -67,15 +69,19 @@ defense.mobs.register_mob("defense:sarangay", {
 		else
 			local nearest = self:find_nearest_player()
 			if nearest then
-				if math.random() < 0.1 then
-					self:set_charging_state(true)
-					self.destination = nil
-				elseif nearest.distance < 6 then
+				if math.abs(self.object:getpos().y - nearest.player:getpos().y) < 4 then
+					if math.random() < 0.1 then
+						self:set_charging_state(true)
+						self.destination = nil
+					elseif nearest.distance < 6 then
+						self:hunt()
+					elseif not self.destination then
+						local nearest_pos = nearest.player:getpos()
+						local dir = vector.direction(nearest_pos, self.object:getpos())
+						self.destination = vector.add(nearest_pos, vector.multiply(dir, math.random() * 16))
+					end
+				else
 					self:hunt()
-				elseif not self.destination then
-					local nearest_pos = nearest.player:getpos()
-					local dir = vector.direction(nearest_pos, self.object:getpos())
-					self.destination = vector.add(nearest_pos, vector.multiply(dir, math.random() * 16))
 				end
 			end
 		end

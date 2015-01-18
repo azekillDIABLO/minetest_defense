@@ -1,5 +1,5 @@
-Minetest Defense [minetest_defense]
-===================================
+Minetest Defense
+================
 
 To use this game with Minetest, insert this repository as
   /games/minetest_defense
@@ -14,5 +14,5 @@ Minetest Defense is based on minetest_game 0.4.11, and should be compatible with
 
 License
 -------
-Most of the default minetest_game files are untouched. License of these files is in minetest_game-license.md.
-License of the defense mod TBA.
+Most of the default minetest_game files are untouched. License of these files is in LICENSE.txt.
+License of the defense mod, the regeneration mod, is in mods/defense/README.txt

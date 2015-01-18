@@ -1,5 +1,5 @@
 defense = {}
-defense.debug = false
+defense.debug = true
 
 local function dofile2(file)
 	dofile(minetest.get_modpath("defense") .. "/" .. file)
@@ -13,6 +13,7 @@ end
 dofile2("mob.lua")
 dofile2("mobs/unggoy.lua")
 dofile2("mobs/sarangay.lua")
+dofile2("mobs/paniki.lua")
 
 dofile2("director.lua")
 dofile2("initial_stuff.lua")

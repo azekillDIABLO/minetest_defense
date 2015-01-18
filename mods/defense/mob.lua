@@ -108,7 +108,7 @@ function mobs.default_prototype:hunt()
 		local nearest_pos = nearest.player:getpos()
 		local dir = vector.direction(nearest_pos, self.object:getpos())
 		self.destination = vector.add(nearest_pos, vector.multiply(dir, self.attack_range/2))
-		if nearest.distance < self.attack_range then
+		if nearest.distance <= self.attack_range then
 			self:do_attack(nearest.player)
 		end
 	end
@@ -215,13 +215,13 @@ function mobs.move_method:air(dtime, destination)
 	})
 
 	local speed = self.move_speed * math.max(0, math.min(1, 2 * dist - 0.5))
-	if speed > 0.01 then
+	if speed > 0 then
 		local t
 		local v = self.object:getvelocity()
-		if vector.length(v) < self.move_speed * 1.1 then
-			t = math.pow(0.1, dtime)
-		else
+		if vector.length(v) < self.move_speed * 1.5 then
 			t = math.pow(0.5, dtime)
+		else
+			t = math.pow(0.9, dtime)
 			speed = speed * 0.9
 		end
 		self.object:setvelocity(vector.add(
@@ -258,7 +258,7 @@ function mobs.move_method:ground(dtime, destination)
 	})
 
 	local speed = self.move_speed * math.max(0, math.min(1, 3 * dist - 0.5))
-	if speed > 0.01 then
+	if speed > 0 then
 		local t
 		local v = self.object:getvelocity()
 		if self:is_standing() and vector.length(v) < self.move_speed * 3 then

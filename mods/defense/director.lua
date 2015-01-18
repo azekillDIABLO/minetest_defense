@@ -1,7 +1,7 @@
 defense.director = {}
 local director = defense.director
 director.call_interval = 1.0
-director.intensity_decay = 0.9
+director.intensity_decay = 0.98
 director.spawn_list = {
 	{
 		description = "Unggoy",
@@ -12,6 +12,7 @@ director.spawn_list = {
 		group_max = 1,
 		probability = 0.1,
 		spawn_time = 1.0,
+		spawn_location = "ground",
 	},
 	{
 		description = "Unggoy group",
@@ -22,16 +23,18 @@ director.spawn_list = {
 		group_max = 12,
 		probability = 0.2,
 		spawn_time = 29.0,
+		spawn_location = "ground",
 	},
 	{
 		description = "Unggoy horde",
 		name = "defense:unggoy",
 		intensity_min = 0.0,
 		intensity_max = 0.0,
-		group_min = 16,
-		group_max = 16,
-		probability = 0.8,
-		spawn_time = 45.0,
+		group_min = 21,
+		group_max = 24,
+		probability = 0.9,
+		spawn_time = 21.0,
+		spawn_location = "ground",
 	},
 	{
 		description = "Sarangay",
@@ -41,7 +44,8 @@ director.spawn_list = {
 		group_min = 1,
 		group_max = 1,
 		probability = 0.1,
-		spawn_time = 13.0,
+		spawn_time = 19.0,
+		spawn_location = "ground",
 	},
 }
 
@@ -111,7 +115,7 @@ function director:spawn_monsters()
 	local group_size = math.floor(0.5 + monster.group_max + (monster.group_min - monster.group_max) * intr)
 
 	-- Find the spawn position
-	local pos = self:find_spawn_position()
+	local pos = self:find_spawn_position(monster.spawn_location)
 	if not pos then
 		if defense.debug then
 			minetest.chat_send_all("No spawn point found!")
@@ -135,7 +139,7 @@ function director:spawn_monsters()
 	return true
 end
 
-function director:find_spawn_position()
+function director:find_spawn_position(spawn_location)
 	local players = minetest.get_connected_players()
 	if #players == 0 then
 		return nil
@@ -151,31 +155,41 @@ function director:find_spawn_position()
 	local points = {}
 	for _,p in ipairs(players) do
 		local pos = p:getpos()
-		local r = 10 + 20/(vector.distance(pos, center) + 1)
+		local r = 20 + 10/(vector.distance(pos, center) + 1)
 		radii[p:get_player_name()] = r - 0.5
 		for j = 0, 6, 1 do
 			local a = math.random() * 2 * math.pi
 			pos.x = pos.x + math.cos(a) * r
 			pos.z = pos.z + math.sin(a) * r
-			pos.y = pos.y + 10
-			local d = -1
-			local node = minetest.get_node_or_nil(pos)
-			if node and minetest.registered_nodes[node.name].walkable then
-				d = 1
-				pos.y = pos.y + 1
-			end
-			for i = pos.y, pos.y + 40 * d, d do
-				local top = {x=pos.x, y=i, z=pos.z}
-				local bottom = {x=pos.x, y=i-1, z=pos.z}
-				local node_top = minetest.get_node_or_nil(top)
-				local node_bottom = minetest.get_node_or_nil(bottom)
-				if node_bottom and node_top
-					and minetest.registered_nodes[node_bottom.name].walkable ~= minetest.registered_nodes[node_top.name].walkable then
-					table.insert(points, top)
-					break
+			if spawn_location == "ground" then
+				-- Move pos to on ground
+				pos.y = pos.y + 10
+				local d = -1
+				local node = minetest.get_node_or_nil(pos)
+				if node and minetest.registered_nodes[node.name].walkable then
+					d = 1
+					pos.y = pos.y + 1
+				end
+				for i = pos.y, pos.y + 40 * d, d do
+					local top = {x=pos.x, y=i, z=pos.z}
+					local bottom = {x=pos.x, y=i-1, z=pos.z}
+					local node_top = minetest.get_node_or_nil(top)
+					local node_bottom = minetest.get_node_or_nil(bottom)
+					if node_bottom and node_top
+						and minetest.registered_nodes[node_bottom.name].walkable ~= minetest.registered_nodes[node_top.name].walkable then
+						table.insert(points, top)
+						break
+					end
+				end
+			elseif spawn_location == "air" then
+				-- Move pos up
+				pos.y = pos.y + 12 + math.random() * 12
+				local node = minetest.get_node_or_nil(pos)
+				if node and minetest.registered_nodes[node.name].walkable then
+					table.insert(points, pos)
 				end
 			end
-			end
+		end
 	end
 
 	if #points == 0 then
@@ -213,9 +227,9 @@ function director:update_intensity()
 	local mob_count = self.mob_count
 
 	local delta =
-		  -0.1 * math.min(0.3, average_health - last_average_health)
+		  -0.1 * math.min(0.1, average_health - last_average_health)
 		+ 0.3 * (1 / average_health - 0.1)
-		+ 0.01 * (mob_count - last_mob_count)
+		+ 0.0001 * (mob_count - last_mob_count)
 
 	last_average_health = average_health
 	last_mob_count = mob_count

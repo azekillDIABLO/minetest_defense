@@ -28,7 +28,7 @@ defense.mobs.register_mob("defense:unggoy", {
 		defense.mobs.default_prototype.on_activate(self, staticdata)
 		-- Some monkeys can jump higher
 		if math.random() < 0.1 then
-			self.jump_height = self.jump_height + math.random()
+			self.jump_height = self.jump_height + math.random() * 2
 		end
 	end,
 

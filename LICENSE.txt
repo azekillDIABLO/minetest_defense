@@ -1,8 +1,6 @@
 License of minetest_game files
 ==============================
 
-minetest_game files include everything except mods/defense*/*
-
 License of source code
 ----------------------
 Copyright (C) 2010-2012 celeron55, Perttu Ahola <celeron55@gmail.com>
