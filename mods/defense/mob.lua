@@ -221,7 +221,7 @@ function mobs.move_method:air(dtime, destination)
 		if vector.length(v) < self.move_speed * 1.1 then
 			t = math.pow(0.1, dtime)
 		else
-			t = math.pow(0.9, dtime)
+			t = math.pow(0.5, dtime)
 			speed = speed * 0.9
 		end
 		self.object:setvelocity(vector.add(
@@ -261,7 +261,7 @@ function mobs.move_method:ground(dtime, destination)
 	if speed > 0.01 then
 		local t
 		local v = self.object:getvelocity()
-		if self:is_standing() and vector.length(v) < self.move_speed * 2 then
+		if self:is_standing() and vector.length(v) < self.move_speed * 3 then
 			t = math.pow(0.001, dtime)
 		else
 			t = math.pow(0.9, dtime)
@@ -291,7 +291,7 @@ function mobs.move_method:ground(dtime, destination)
 			p.y = p.y + self.collisionbox[2] + 0.5
 			local sx = self.collisionbox[4] - self.collisionbox[1]
 			local sz = self.collisionbox[6] - self.collisionbox[3]
-			local r = math.sqrt(sx*sx + sz*sz)/2 + self.move_speed/3 + 0.5
+			local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
 			local node = minetest.get_node_or_nil(vector.add(p, vector.multiply(dir, r)))
 			if not node or minetest.registered_nodes[node.name].walkable then
 				jump = true

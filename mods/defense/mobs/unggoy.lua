@@ -24,6 +24,14 @@ defense.mobs.register_mob("defense:unggoy", {
 
 	wander = false,
 
+	on_activate = function(self, staticdata)
+		defense.mobs.default_prototype.on_activate(self, staticdata)
+		-- Some monkeys can jump higher
+		if math.random() < 0.1 then
+			self.jump_height = self.jump_height + math.random()
+		end
+	end,
+
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
 		if self.wander then

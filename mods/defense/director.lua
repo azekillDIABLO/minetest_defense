@@ -4,45 +4,49 @@ director.call_interval = 1.0
 director.intensity_decay = 0.9
 director.spawn_list = {
 	{
+		description = "Unggoy",
 		name = "defense:unggoy",
 		intensity_min = 0.0,
 		intensity_max = 0.9,
 		group_min = 1,
 		group_max = 1,
 		probability = 0.1,
-		spawn_timer = 1.0,
+		spawn_time = 1.0,
 	},
 	{
+		description = "Unggoy group",
 		name = "defense:unggoy",
 		intensity_min = 0.0,
 		intensity_max = 0.5,
 		group_min = 4,
-		group_max = 14,
+		group_max = 12,
 		probability = 0.5,
-		spawn_timer = 9.0,
+		spawn_time = 29.0,
 	},
 	{
+		description = "Unggoy horde",
 		name = "defense:unggoy",
 		intensity_min = 0.0,
 		intensity_max = 0.0,
 		group_min = 16,
 		group_max = 16,
 		probability = 0.8,
-		spawn_timer = 9.0,
+		spawn_time = 45.0,
 	},
 	{
+		description = "Sarangay",
 		name = "defense:sarangay",
 		intensity_min = 0.1,
 		intensity_max = 0.5,
 		group_min = 1,
 		group_max = 1,
 		probability = 0.4,
-		spawn_timer = 8.0,
+		spawn_time = 13.0,
 	},
 }
 
 director.mob_count = 0
-director.spawn_timer = 600
+director.spawn_timers = {}
 
 director.intensity = 0.5
 director.cooldown_timer = 3
@@ -50,20 +54,22 @@ director.cooldown_timer = 3
 local last_average_health = 1.0
 local last_mob_count = 0
 
+for i,m in ipairs(director.spawn_list) do
+	director.spawn_timers[m.description] = m.spawn_time
+end
+
 function director:on_interval()
 	self:update_intensity()
-	minetest.chat_send_all("Intensity: " .. self.intensity)
+	if defense.debug then
+		minetest.chat_send_all("Intensity: " .. self.intensity)
+	end
 
 	if self.cooldown_timer <= 0 then
 		if defense:is_dark() then
-			if math.random() < 1 - self.intensity then
-				if self:spawn_monsters() then
-					self.spawn_timer = 0
-				end
-			end
+			self:spawn_monsters()
 		end
 
-		if self.intensity > 0.85 then
+		if self.intensity > 0.5 then
 			if self.intensity == 1 then
 				self.cooldown_timer = math.random(20, 45)
 			else
@@ -72,17 +78,23 @@ function director:on_interval()
 		end
 	else
 		self.cooldown_timer = self.cooldown_timer - self.call_interval
-		minetest.chat_send_all("Cooldown: " .. self.cooldown_timer)
+		if defense.debug then
+			minetest.chat_send_all("Cooldown: " .. self.cooldown_timer)
+		end
 	end
 
-	self.spawn_timer = self.spawn_timer + self.call_interval
+	for k,v in pairs(self.spawn_timers) do
+		if v > 0 then 
+			self.spawn_timers[k] = v - self.call_interval
+		end
+	end
 end
 
 function director:spawn_monsters()
 	-- Filter eligible monsters
 	local filtered = {}
 	for _,m in ipairs(self.spawn_list) do
-		if self.spawn_timer >= m.spawn_timer
+		if self.spawn_timers[m.description] <= 0
 			and math.random() < m.probability
 			and self.intensity >= m.intensity_min
 			and self.intensity <= m.intensity_max then
@@ -101,12 +113,17 @@ function director:spawn_monsters()
 	-- Find the spawn position
 	local pos = self:find_spawn_position()
 	if not pos then
-		minetest.chat_send_all("No spawn point found!")
+		if defense.debug then
+			minetest.chat_send_all("No spawn point found!")
+		end
 		return false
 	end
 
 	-- Spawn
-	minetest.chat_send_all("Spawn " .. group_size .. " " .. monster.name .. " at " .. minetest.pos_to_string(pos))
+	if defense.debug then
+		minetest.chat_send_all("Spawn " .. monster.description .. " (" .. group_size .. " " .. 
+			endmonster.name .. ") at " .. minetest.pos_to_string(pos))
+	end
 	self.mob_count = self.mob_count + group_size
 	repeat
 		minetest.after(group_size * (math.random() * 0.2), function()
@@ -114,6 +131,7 @@ function director:spawn_monsters()
 		end)
 		group_size = group_size - 1
 	until group_size <= 0
+	self.spawn_timers[monster.description] = monster.spawn_time
 	return true
 end
 
