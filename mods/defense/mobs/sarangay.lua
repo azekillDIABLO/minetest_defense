@@ -53,7 +53,7 @@ defense.mobs.register_mob("defense:sarangay", {
 			pos.y = pos.y + 1.5
 			local v = self.object:getvelocity()
 			v.y = 0
-			pos = vector.add(pos, vector.multiply(vector.normalize(v), 2))
+			pos = vector.add(pos, vector.multiply(vector.normalize(v), 2.5))
 			local blocks = self:crash_blocks(pos, 2)
 			local entities = self:crash_entities(pos, 2)
 			self.charge_power = self.charge_power - blocks * 0.1 - entities * 0.01
