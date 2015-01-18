@@ -20,7 +20,7 @@ director.spawn_list = {
 		intensity_max = 0.5,
 		group_min = 4,
 		group_max = 12,
-		probability = 0.5,
+		probability = 0.2,
 		spawn_time = 29.0,
 	},
 	{
@@ -40,7 +40,7 @@ director.spawn_list = {
 		intensity_max = 0.5,
 		group_min = 1,
 		group_max = 1,
-		probability = 0.4,
+		probability = 0.1,
 		spawn_time = 13.0,
 	},
 }

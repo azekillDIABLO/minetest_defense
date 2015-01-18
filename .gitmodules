@@ -1,0 +1,3 @@
+[submodule "mods/throwing"]
+	path = mods/throwing
+	url = https://github.com/PilzAdam/throwing

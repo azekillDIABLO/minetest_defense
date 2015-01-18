@@ -50,12 +50,12 @@ defense.mobs.register_mob("defense:sarangay", {
 
 			-- Break obstacles
 			local pos = self.object:getpos()
-			pos.y = pos.y + 1.5
+			pos.y = pos.y + 2.5
 			local v = self.object:getvelocity()
 			v.y = 0
-			pos = vector.add(pos, vector.multiply(vector.normalize(v), 2.5))
-			local blocks = self:crash_blocks(pos, 2)
-			local entities = self:crash_entities(pos, 2)
+			pos = vector.add(pos, vector.multiply(vector.normalize(v), 1.5))
+			local blocks = self:crash_blocks(pos, 4)
+			local entities = self:crash_entities(pos, 3)
 			self.charge_power = self.charge_power - blocks * 0.1 - entities * 0.01
 
 			if self.charge_power < 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < 1) then
@@ -124,16 +124,16 @@ defense.mobs.register_mob("defense:sarangay", {
 		local myv = self.object:getvelocity()
 		for _,o in pairs(minetest.get_objects_inside_radius(pos, radius)) do
 			if o ~= self.object then
-				local dir = vector.direction(self.object:getpos(), o:getpos())
-				o:set_hp(o:get_hp() - 3)
+				o:set_hp(o:get_hp() - 1)
 
 				local e = o:get_luaentity()
 				if e then
 					local m = e.mass or 0.1
 					local v = vector.add(o:getvelocity(), vector.multiply(myv, 1/m))
 					if v then
+						local dir = vector.direction(self.object:getpos(), o:getpos())
 						dir.y = dir.y + 1
-						o:setvelocity(vector.add(v, vector.multiply(dir, 6/m)))
+						o:setvelocity(vector.add(v, vector.multiply(dir, 3/m)))
 					end
 
 					weight_count = weight_count + m
