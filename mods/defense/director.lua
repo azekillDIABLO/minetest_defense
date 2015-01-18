@@ -122,7 +122,7 @@ function director:spawn_monsters()
 	-- Spawn
 	if defense.debug then
 		minetest.chat_send_all("Spawn " .. monster.description .. " (" .. group_size .. " " .. 
-			endmonster.name .. ") at " .. minetest.pos_to_string(pos))
+			monster.name .. ") at " .. minetest.pos_to_string(pos))
 	end
 	self.mob_count = self.mob_count + group_size
 	repeat
