@@ -1,7 +1,7 @@
 defense.mobs.register_mob("defense:paniki", {
 	hp_max = 3,
 	collisionbox = {-0.4,-0.4,-0.4, 0.4,0.4,0.4},
-	visual_size = {x=4.0, y=4.0},
+	visual_size = {x=5.0, y=5.0},
 	mesh = "defense_paniki.b3d",
 	textures = {"defense_paniki.png"},
 	makes_footstep_sound = false,
