@@ -37,9 +37,15 @@ defense.mobs.register_mob("defense:paniki", {
 		else
 			self:hunt()
 			if self.object:get_hp() < self.last_hp then
-				self.flee_timer = math.random()
+				self.flee_timer = math.random() * 2 / (self.object:get_hp() + 1)
 				self.last_hp = self.object:get_hp()
 			end
 		end
-	end
+	end,
+
+	attack = function(self, obj)
+		defense.mobs.default_prototype.attack(self, obj)
+		self.object:set_hp(self.object:get_hp() + 1)
+		self.flee_timer = 0.1
+	end,
 })
