@@ -258,7 +258,7 @@ function mobs.move_method:air(dtime, destination)
 		end
 		self.object:setyaw(yaw + yaw_delta * (1-t))
 
-		if speed > self.move_speed * 0.1 then
+		if speed > self.move_speed * 0 then
 			self:set_animation("move", {"move_attack"})
 		else
 			self:set_animation("idle", {"attack", "move_attack"})

@@ -1,5 +1,5 @@
 defense = {}
-defense.debug = false
+defense.debug = true
 
 local modpath = minetest.get_modpath("defense")
 local function dofile2(file)

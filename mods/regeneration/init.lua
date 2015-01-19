@@ -1,8 +1,9 @@
-local rate = 0.1 -- hp per second
+regeneration = {}
+regeneration.rate = 0.1 -- hp per second
 
 local counter = 0
 minetest.register_globalstep(function(dtime)
-	counter = counter + dtime * rate
+	counter = counter + dtime * regeneration.rate
 	if counter >= 1 then
 		for _,p in ipairs(minetest.get_connected_players()) do
 			while counter >= 1 do

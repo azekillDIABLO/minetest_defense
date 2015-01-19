@@ -1,19 +1,16 @@
 defense.mobs.register_mob("defense:paniki", {
 	hp_max = 3,
-	collisionbox = {-0.4,-0.01,-0.4, 0.4,0.8,0.4},
-	visual_size = {x=1.0, y=1.0},
-	-- mesh = "defense_paniki.b3d",
-	visual = "sprite",
+	collisionbox = {-0.4,-0.4,-0.4, 0.4,0.4,0.4},
+	visual_size = {x=4.0, y=4.0},
+	mesh = "defense_paniki.b3d",
 	textures = {"defense_paniki.png"},
 	makes_footstep_sound = false,
 
 	animation = {
-		-- idle = {a=0, b=39, rate=30},
-		-- jump = {a=40, b=49, rate=15},
-		-- fall = {a=50, b=64, rate=20},
-		-- attack = {a=65, b=72, rate=15},
-		-- move = {a=75, b=99, rate=40},
-		-- move_attack = {a=100, b=113, rate=20},
+		idle = {a=0, b=29, rate=50},
+		attack = {a=60, b=89, rate=50},
+		move = {a=30, b=59, rate=75},
+		move_attack = {a=60, b=89, rate=75},
 	},
 
 	mass = 1,

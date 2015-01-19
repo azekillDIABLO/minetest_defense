@@ -129,7 +129,6 @@ function director:spawn_monsters()
 		minetest.chat_send_all("Spawn " .. monster.description .. " (" .. group_size .. " " .. 
 			monster.name .. ") at " .. minetest.pos_to_string(pos))
 	end
-	mob_count = mob_count + group_size
 	repeat
 		minetest.after(group_size * (math.random() * 0.2), function()
 			local obj = minetest.add_entity(pos, monster.name)
