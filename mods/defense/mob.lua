@@ -79,7 +79,7 @@ function mobs.default_prototype:on_punch(puncher, time_from_last_punch, tool_cap
 	if puncher then
 		local weapon = puncher:get_wielded_item()
 		if tool_capabilities then
-			local wear = (0.01) * (self.armor / 100) * 65535
+			local wear = (0.01) * (self.armor / 100) * 65534 + 1
 			weapon:add_wear(wear)
 			puncher:set_wielded_item(weapon)
 		end
