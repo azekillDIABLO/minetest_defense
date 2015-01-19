@@ -23,7 +23,7 @@ mobs.default_prototype = {
 	current_animation_end = 0,
 	destination = nil, -- position
 	last_attack_time = 0,
-	life_timer = 90,
+	life_timer = 75,
 	pause_timer = 0,
 	timer = 0,
 }
