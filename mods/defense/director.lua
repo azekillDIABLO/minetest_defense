@@ -56,7 +56,6 @@ director.spawn_list = {
 director.intensity = 0.5
 director.cooldown_timer = 3
 
-local world_timer = 0
 local spawn_timers = {}
 local last_average_health = 1.0
 local last_mob_count = 0
@@ -91,8 +90,6 @@ function director:on_interval()
 			spawn_timers[k] = v - self.call_interval
 		end
 	end
-
-	world_timer = world_timer + self.call_interval
 end
 
 function director:spawn_monsters()
@@ -239,7 +236,7 @@ end
 
 function director:get_day_count()
 	local time_speed = minetest.setting_get("time_speed")
-	return math.floor(world_timer * time_speed / 86400)
+	return math.floor(minetest.get_gametime() * time_speed / 86400)
 end
 
 local last_call_time = 0
@@ -257,7 +254,6 @@ function director:save()
 		intensity = self.intensity,
 		cooldown_timer = self.cooldown_timer,
 		spawn_timers = spawn_timers,
-		world_timer = world_timer,
 		last_average_health = last_average_health,
 		last_mob_count = last_mob_count,
 	}
@@ -272,7 +268,6 @@ function director:load()
 		self.intensity = data.intensity
 		self.cooldown_timer = data.cooldown_timer
 		spawn_timers = data.spawn_timers
-		world_timer = data.world_timer
 		last_average_health = data.last_average_health
 		last_mob_count = data.last_mob_count
 	end
