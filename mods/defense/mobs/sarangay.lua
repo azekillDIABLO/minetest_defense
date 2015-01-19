@@ -2,7 +2,6 @@ local c_air = minetest.get_content_id("air")
 defense.mobs.register_mob("defense:sarangay", {
 	hp_max = 30,
 	collisionbox = {-0.9,-0.01,-0.9, 0.9,2.5,0.9},
-	visual_size = {x=3, y=3},
 	mesh = "defense_sarangay.b3d",
 	textures = {"defense_sarangay.png"},
 	makes_footstep_sound = true,
@@ -135,7 +134,7 @@ defense.mobs.register_mob("defense:sarangay", {
 
 				local e = o:get_luaentity()
 				if e then
-					local m = e.mass or 0.1
+					local m = e.mass or 1
 					local v = vector.add(o:getvelocity(), vector.multiply(myv, 1/m))
 					if v then
 						local dir = vector.direction(self.object:getpos(), o:getpos())

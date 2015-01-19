@@ -1,7 +1,6 @@
 defense.mobs.register_mob("defense:unggoy", {
 	hp_max = 3,
 	collisionbox = {-0.4,-0.01,-0.4, 0.4,1.5,0.4},
-	visual_size = {x=2.5, y=2.5},
 	mesh = "defense_unggoy.b3d",
 	textures = {"defense_unggoy.png"},
 	makes_footstep_sound = true,
