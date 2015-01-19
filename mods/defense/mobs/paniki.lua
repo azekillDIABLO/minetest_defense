@@ -27,9 +27,9 @@ defense.mobs.register_mob("defense:paniki", {
 	on_activate = function(self, staticdata)
 		defense.mobs.default_prototype.on_activate(self, staticdata)
 		self.rank = math.random()
+		local pos = self.object:getpos()
+		local radius = 2
 		minetest.after(1, function()
-			local pos = self.object:getpos()
-			local radius = 4
 			local greatest_paniki = self
 			local greatest_rank = self.rank
 			for _,o in pairs(minetest.get_objects_inside_radius(pos, radius)) do
