@@ -14,7 +14,7 @@ mobs.default_prototype = {
 	movement = "ground", -- "ground"/"air"
 	move_speed = 1,
 	jump_height = 1,
-	armor = 100,
+	armor = 0,
 	attack_range = 1,
 	attack_damage = 1,
 	attack_interval = 1,
@@ -29,7 +29,7 @@ mobs.default_prototype = {
 }
 
 function mobs.default_prototype:on_activate(staticdata)
-	self.object:set_armor_groups({fleshy=self.armor})
+	self.object:set_armor_groups({fleshy = 100 - self.armor})
 	if self.movement == "ground" then
 		self.object:setacceleration({x=0, y=mobs.gravity, z=0})
 	end
@@ -64,7 +64,7 @@ function mobs.default_prototype:on_step(dtime)
 	end
 
 	if self.life_timer <= 0 then
-		if destination_distance > 12 then
+		if destination_distance > 6 then
 			self.object:remove()
 		end
 	else
@@ -75,15 +75,29 @@ function mobs.default_prototype:on_step(dtime)
 end
 
 function mobs.default_prototype:on_punch(puncher, time_from_last_punch, tool_capabilities, dir)
+	-- Weapon wear code adapted from TenPlus1's mobs redo (https://github.com/tenplus1/mobs)
+	if puncher then
+		local weapon = puncher:get_wielded_item()
+		if tool_capabilities then
+			local wear = (0.01) * (self.armor / 100) * 65535
+			weapon:add_wear(wear)
+			puncher:set_wielded_item(weapon)
+		end
+	end
+
 	dir.y = dir.y + 1
 	local knockback = vector.multiply(vector.normalize(dir), 10 / (1 + self.mass))
 	self.object:setvelocity(vector.add(self.object:getvelocity(), knockback))
 	self.pause_timer = 0.3
+
+	if self.object:get_hp() <= 0 then
+		self:die()
+	end
 end
 
 function mobs.default_prototype:damage(amount)
 	if self.object:get_hp() <= amount then
-		self.object:remove()
+		self:die()
 	else
 		self.object:set_hp(self.object:get_hp() - amount)
 	end
@@ -107,7 +121,8 @@ function mobs.default_prototype:hunt()
 	if nearest.player then
 		local nearest_pos = nearest.player:getpos()
 		local dir = vector.direction(nearest_pos, self.object:getpos())
-		self.destination = vector.add(nearest_pos, vector.multiply(dir, self.attack_range/2))
+		local r = math.max(0, self.attack_range - 0.3)
+		self.destination = vector.add(nearest_pos, vector.multiply(dir, r))
 		if nearest.distance <= self.attack_range then
 			self:do_attack(nearest.player)
 		end
@@ -137,6 +152,11 @@ function mobs.default_prototype:jump(direction)
 		self.object:setvelocity(v)
 		self:set_animation("jump")
 	end
+end
+
+function mobs.default_prototype:die()
+	-- self:on_death()
+	self.object:remove()
 end
 
 function mobs.default_prototype:is_standing()
@@ -207,19 +227,19 @@ function mobs.move_method:air(dtime, destination)
 	local dist = vector.length(delta)
 
 	local r_angle = (self.id/100000) * 2 * math.pi
-	local r_radius = dist/2
+	local r_radius = (self.id/100000) * dist/3
 	delta = vector.add(delta, {
 		x=math.cos(r_angle)*r_radius,
-		y=0,
+		y=r_radius,
 		z=math.sin(r_angle)*r_radius
 	})
 
-	local speed = self.move_speed * math.max(0, math.min(1, 2 * dist - 0.5))
+	local speed = self.move_speed * math.max(0, math.min(1, 0.5 * dist))
 	if speed > 0 then
 		local t
 		local v = self.object:getvelocity()
 		if vector.length(v) < self.move_speed * 1.5 then
-			t = math.pow(0.5, dtime)
+			t = math.pow(0.3, dtime)
 		else
 			t = math.pow(0.9, dtime)
 			speed = speed * 0.9
@@ -238,7 +258,11 @@ function mobs.move_method:air(dtime, destination)
 		end
 		self.object:setyaw(yaw + yaw_delta * (1-t))
 
-		self:set_animation("move", {"move_attack"})
+		if speed > self.move_speed * 0.1 then
+			self:set_animation("move", {"move_attack"})
+		else
+			self:set_animation("idle", {"attack", "move_attack"})
+		end
 	else
 		self.object:setvelocity({x=0, y=0, z=0})
 		self:set_animation("idle", {"attack", "move_attack"})
@@ -250,14 +274,14 @@ function mobs.move_method:ground(dtime, destination)
 	local dist = vector.length(delta)
 
 	local r_angle = (self.id/100000) * 2 * math.pi
-	local r_radius = dist/3
+	local r_radius = dist/4
 	delta = vector.add(delta, {
 		x=math.cos(r_angle)*r_radius,
 		y=0,
 		z=math.sin(r_angle)*r_radius
 	})
 
-	local speed = self.move_speed * math.max(0, math.min(1, 3 * dist - 0.5))
+	local speed = self.move_speed * math.max(0, math.min(1, 0.8 * dist))
 	if speed > 0 then
 		local t
 		local v = self.object:getvelocity()
@@ -301,7 +325,11 @@ function mobs.move_method:ground(dtime, destination)
 		if jump then
 			self:jump(dir)
 		elseif self:is_standing() then
-			self:set_animation("move", {"move_attack"})
+			if speed > self.move_speed * 0.06 then
+				self:set_animation("move", {"move_attack"})
+			else
+				self:set_animation("idle", {"attack", "move_attack"})
+			end
 		end
 	else
 		local v = self.object:getvelocity()

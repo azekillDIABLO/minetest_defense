@@ -1,8 +1,9 @@
 defense = {}
-defense.debug = true
+defense.debug = false
 
+local modpath = minetest.get_modpath("defense")
 local function dofile2(file)
-	dofile(minetest.get_modpath("defense") .. "/" .. file)
+	dofile(modpath .. "/" .. file)
 end
 
 function defense:is_dark()

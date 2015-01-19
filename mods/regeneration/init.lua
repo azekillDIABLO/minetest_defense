@@ -1,12 +1,12 @@
 local rate = 0.1 -- hp per second
 
-local timer = 0
+local counter = 0
 minetest.register_globalstep(function(dtime)
-	timer = timer + dtime
-	if timer * rate > 1 then
+	counter = counter + dtime * rate
+	if counter >= 1 then
 		for _,p in ipairs(minetest.get_connected_players()) do
-			while timer * rate > 1 do
-				timer = timer - rate
+			while counter >= 1 do
+				counter = counter - 1
 				p:set_hp(p:get_hp() + 1)
 			end
 		end

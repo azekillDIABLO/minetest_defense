@@ -31,6 +31,7 @@ defense.mobs.register_mob("defense:sarangay", {
 	mass = 12,
 	move_speed = 4,
 	jump_height = 1,
+	armor = 0,
 	attack_damage = 4,
 	attack_range = 2.0,
 	attack_interval = 1.0,
@@ -46,7 +47,7 @@ defense.mobs.register_mob("defense:sarangay", {
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
 		if self.charging then
-			if self.charge_power > 1 then
+			if self.charge_power > 0.5 then
 				self:hunt()
 			end
 
@@ -60,7 +61,7 @@ defense.mobs.register_mob("defense:sarangay", {
 			local entities = self:crash_entities(pos, 3)
 			self.charge_power = self.charge_power - blocks * 0.2 - entities * 0.05
 
-			if self.charge_power < 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < 1) then
+			if self.charge_power < 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < self.move_speed/4) then
 				self:set_charging_state(false)
 				self.destination = nil
 			else

@@ -1,7 +1,7 @@
 defense.mobs.register_mob("defense:paniki", {
 	hp_max = 3,
-	collisionbox = {-0.2,-0.01,-0.2, 0.2,0.4,0.2},
-	visual_size = {x=1.5, y=1.5},
+	collisionbox = {-0.4,-0.01,-0.4, 0.4,0.8,0.4},
+	visual_size = {x=1.0, y=1.0},
 	-- mesh = "defense_paniki.b3d",
 	visual = "sprite",
 	textures = {"defense_paniki.png"},
@@ -39,7 +39,7 @@ defense.mobs.register_mob("defense:paniki", {
 			self.flee_timer = self.flee_timer - dtime
 		else
 			self:hunt()
-			if self.object:get_hp() < self.last_hp or math.random() < 0.1 then
+			if self.object:get_hp() < self.last_hp then
 				self.flee_timer = math.random()
 				self.last_hp = self.object:get_hp()
 			end
