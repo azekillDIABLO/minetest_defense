@@ -1,10 +1,8 @@
 defense.mobs.register_mob("defense:botete", {
 	hp_max = 2,
 	collisionbox = {-0.4,-0.4,-0.4, 0.4,0.4,0.4},
-	mesh = "defense_botete
-	.b3d",
-	textures = {"defense_botete
-	.png"},
+	mesh = "defense_botete.b3d",
+	textures = {"defense_botete.png"},
 	makes_footstep_sound = false,
 
 	animation = {
