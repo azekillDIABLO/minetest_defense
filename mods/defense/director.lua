@@ -23,7 +23,7 @@ director.spawn_list = {
 		group_min = 21,
 		group_max = 24,
 		probability = 0.8,
-		day_start = 2,
+		day_start = 1,
 		spawn_time = 21.0,
 		spawn_location = "ground",
 	},
