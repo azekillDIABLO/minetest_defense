@@ -23,7 +23,7 @@ director.spawn_list = {
 		group_min = 21,
 		group_max = 24,
 		probability = 0.8,
-		day_start = 1,
+		day_start = 2,
 		spawn_time = 21.0,
 		spawn_location = "ground",
 	},
@@ -35,7 +35,7 @@ director.spawn_list = {
 		group_min = 1,
 		group_max = 4,
 		probability = 0.2,
-		day_start = 2,
+		day_start = 1,
 		spawn_time = 14.0,
 		spawn_location = "air",
 	},
@@ -47,9 +47,21 @@ director.spawn_list = {
 		group_min = 1,
 		group_max = 1,
 		probability = 0.2,
-		day_start = 1,
+		day_start = 3,
 		spawn_time = 19.0,
 		spawn_location = "ground",
+	},
+	{
+		description = "Botete",
+		name = "defense:botete",
+		intensity_min = 0,
+		intensity_max = 0.4,
+		group_min = 1,
+		group_max = 1,
+		probability = 0.2,
+		day_start = 4,
+		spawn_time = 21.0,
+		spawn_location = "air",
 	},
 }
 
@@ -61,7 +73,7 @@ local last_average_health = 1.0
 local last_mob_count = 0
 
 for i,m in ipairs(director.spawn_list) do
-	spawn_timers[m.description] = m.spawn_time
+	spawn_timers[m.description] = m.spawn_time/2
 end
 
 function director:on_interval()
@@ -262,16 +274,18 @@ function director:save()
 end
 
 function director:load()
-	local file = assert(io.open(minetest.get_worldpath() .. "/defense.txt", "r"))
-	local data = minetest.deserialize(file:read("*all"))
-	if data then
-		self.intensity = data.intensity
-		self.cooldown_timer = data.cooldown_timer
-		spawn_timers = data.spawn_timers
-		last_average_health = data.last_average_health
-		last_mob_count = data.last_mob_count
+	local file = io.open(minetest.get_worldpath() .. "/defense.txt", "r")
+	if file then
+		local data = minetest.deserialize(file:read("*all"))
+		if data then
+			self.intensity = data.intensity
+			self.cooldown_timer = data.cooldown_timer
+			spawn_timers = data.spawn_timers
+			last_average_health = data.last_average_health
+			last_mob_count = data.last_mob_count
+		end
+		assert(file:close())
 	end
-	assert(file:close())
 end
 
 minetest.register_on_shutdown(function()
