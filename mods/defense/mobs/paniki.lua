@@ -71,9 +71,6 @@ defense.mobs.register_mob("defense:paniki", {
 
 	attack = function(self, obj)
 		defense.mobs.default_prototype.attack(self, obj)
-		if self.object:get_hp() < self.hp_max then
-			self.object:set_hp(self.object:get_hp() + 1)
-		end
-		self.flee_timer = 0.5 + math.random()
+		self.flee_timer = math.random()
 	end,
 })
