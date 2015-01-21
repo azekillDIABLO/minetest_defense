@@ -109,6 +109,7 @@ function director:spawn_monsters()
 	local filtered = {}
 	for _,m in ipairs(self.spawn_list) do
 		if spawn_timers[m.description] <= 0
+			and self:get_day_count() >= m.day_start
 			and math.random() < m.probability
 			and self.intensity >= m.intensity_min
 			and self.intensity <= m.intensity_max then

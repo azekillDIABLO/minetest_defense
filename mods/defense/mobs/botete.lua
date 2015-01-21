@@ -18,4 +18,8 @@ defense.mobs.register_mob("defense:botete", {
 	attack_damage = 0,
 	attack_range = 8,
 	attack_interval = 2.2,
+
+	on_step = function(self, dtime)
+		
+	end,
 })
