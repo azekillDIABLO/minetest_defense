@@ -120,8 +120,9 @@ function mobs.default_prototype:hunt()
 		local dir = vector.direction(nearest.position, self.object:getpos())
 		if nearest.distance <= self.attack_range then
 			self:do_attack(nearest.player)
-		else
-			local r = math.max(0, self.attack_range - 3.0)
+		end
+		if nearest.distance > self.attack_range or nearest.distance < self.attack_range/2-1 then
+			local r = math.max(0, self.attack_range - 1.0)
 			self.destination = vector.add(nearest.position, vector.multiply(dir, r))
 		end
 	end
