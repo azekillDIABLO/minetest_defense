@@ -44,6 +44,7 @@ defense.mobs.register_mob("defense:botete", {
 			angle = math.pi/4
 		end
 
+		-- Calculate initial velocity
 		local xs = math.cos(angle) * s * (0.9 + math.random() * 0.2)
 		local ys = math.sin(angle) * s * (0.9 + math.random() * 0.2)
 		local horiz_angle = math.atan2(delta.z, delta.x) + (math.random() * 0.1 - 0.05)
@@ -53,9 +54,18 @@ defense.mobs.register_mob("defense:botete", {
 			z = math.sin(horiz_angle) * xs
 		}
 
+		-- Launch projectile
 		local projectile = minetest.add_entity(pos, "defense:gooball")
 		projectile:setvelocity(v)
 		self.object:setvelocity(vector.multiply(v, -0.5))
+
+		if math.random() < 0.1 then
+			if self.attack_range < 4 then
+				self.attack_range = 8
+			else
+				self.attack_range = self.attack_range - 1
+			end
+		end
 	end,
 })
 
