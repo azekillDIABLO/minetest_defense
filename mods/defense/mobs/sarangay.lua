@@ -130,7 +130,10 @@ defense.mobs.register_mob("defense:sarangay", {
 		local myv = self.object:getvelocity()
 		for _,o in pairs(minetest.get_objects_inside_radius(pos, radius)) do
 			if o ~= self.object then
-				o:set_hp(o:get_hp() - 1)
+				o:punch(self.object, 1.0,  {
+					full_punch_interval=1.0,
+					damage_groups = {fleshy=1}
+				}, nil)
 
 				local e = o:get_luaentity()
 				if e then

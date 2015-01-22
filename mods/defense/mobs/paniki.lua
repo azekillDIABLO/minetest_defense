@@ -16,7 +16,7 @@ defense.mobs.register_mob("defense:paniki", {
 	movement = "air",
 	move_speed = 16,
 	attack_damage = 1,
-	attack_range = 1.0,
+	attack_range = 1.1,
 	attack_interval = 0.8,
 
 	rank = 0,
@@ -69,8 +69,8 @@ defense.mobs.register_mob("defense:paniki", {
 		end
 	end,
 
-	attack = function(self, obj)
+	attack = function(self, obj, dir)
 		defense.mobs.default_prototype.attack(self, obj)
-		self.flee_timer = math.random()
+		self.flee_timer = math.random() * 0.5
 	end,
 })

@@ -1,6 +1,22 @@
 defense = {}
 defense.debug = false
 
+minetest.register_chatcommand("debug", {
+	params = "",
+	description = "Toggle Defense debug mode",
+	privs = {server=true},
+	func = function(name, param)
+		defense.debug = not defense.debug
+		if defense.debug then
+			regeneration.rate = 100
+			minetest.set_timeofday(0.3)
+		else
+			regeneration.rate = 0.1
+		end
+		return true
+	end,
+})
+
 local modpath = minetest.get_modpath("defense")
 local function dofile2(file)
 	dofile(modpath .. "/" .. file)
