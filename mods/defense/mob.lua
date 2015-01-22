@@ -120,6 +120,7 @@ function mobs.default_prototype:hunt()
 	local nearest = self:find_nearest_player()
 	if nearest.player then
 		local nearest_pos = nearest.player:getpos()
+		nearest_pos.y = nearest_pos.y + 1
 		local dir = vector.direction(nearest_pos, self.object:getpos())
 		local r = math.max(0, self.attack_range - 0.5)
 		self.destination = vector.add(nearest_pos, vector.multiply(dir, r))
