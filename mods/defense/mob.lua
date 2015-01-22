@@ -103,13 +103,11 @@ function mobs.default_prototype:damage(amount)
 	end
 end
 
-function mobs.default_prototype:attack(obj)
-	local dir = vector.direction(self.object:getpos(), obj:getpos())
+function mobs.default_prototype:attack(obj, dir)
 	obj:punch(self.object, self.timer - self.last_attack_time,  {
 		full_punch_interval=self.attack_interval,
 		damage_groups = {fleshy=self.attack_damage}
 	}, dir)
-	self.object:setyaw(math.atan2(dir.z, dir.x))
 end
 
 function mobs.default_prototype:move(dtime, destination)
@@ -119,26 +117,27 @@ end
 function mobs.default_prototype:hunt()
 	local nearest = self:find_nearest_player()
 	if nearest.player then
-		local nearest_pos = nearest.player:getpos()
-		nearest_pos.y = nearest_pos.y + 1
-		local dir = vector.direction(nearest_pos, self.object:getpos())
-		local r = math.max(0, self.attack_range - 0.5)
-		self.destination = vector.add(nearest_pos, vector.multiply(dir, r))
+		local dir = vector.direction(nearest.position, self.object:getpos())
 		if nearest.distance <= self.attack_range then
 			self:do_attack(nearest.player)
+		else
+			local r = math.max(0, self.attack_range - 3.0)
+			self.destination = vector.add(nearest.position, vector.multiply(dir, r))
 		end
 	end
 end
 
 function mobs.default_prototype:do_attack(obj)
 	if self.last_attack_time + self.attack_interval < self.timer then
-		self:attack(obj)
+		local dir = vector.direction(self.object:getpos(), obj:getpos())
+		self:attack(obj, dir)
 		self.last_attack_time = self.timer
 		if self.current_animation == "move" then
 			self:set_animation("move_attack")
 		else
 			self:set_animation("attack")
 		end
+		self.object:setyaw(math.atan2(dir.z, dir.x))
 	end
 	self.life_timer = math.min(300, self.life_timer + 60)
 end
@@ -204,22 +203,28 @@ end
 function mobs.default_prototype:find_nearest_player()
 	local p = self.object:getpos()
 	local nearest_player = nil
-	local nearest_dist = 999
+	local nearest_pos = p
+	local nearest_dist = 9999
 	for _,obj in ipairs(minetest.get_connected_players()) do
 		if obj:is_player() then
-			if nearest_player then 
-				local d = vector.distance(nearest_player:getpos(), p)
+			if not nearest_player then
+				nearest_player = obj
+				nearest_pos = obj:getpos()
+				nearest_pos.y = nearest_pos.y + 1
+				nearest_dist = vector.distance(nearest_pos, p)
+			else
+				local pos = obj:getpos()
+				pos.y = pos.y + 1
+				local d = vector.distance(pos, p)
 				if d < nearest_dist then
 					nearest_player = obj
+					nearest_pos = pos
 					nearest_dist = d
 				end
-			else
-					nearest_player = obj
-					nearest_dist = vector.distance(obj:getpos(), p)
 			end
 		end
 	end
-	return {player=nearest_player, distance=nearest_dist}
+	return {player=nearest_player, position=nearest_pos, distance=nearest_dist}
 end
 
 mobs.move_method = {}
@@ -235,21 +240,21 @@ function mobs.move_method:air(dtime, destination)
 		z=math.sin(r_angle)*r_radius
 	})
 
-	local speed = self.move_speed * math.max(0, math.min(1, 0.5 * dist))
-	if speed > 0 then
-		local t
-		local v = self.object:getvelocity()
-		if vector.length(v) < self.move_speed * 1.5 then
-			t = math.pow(0.1, dtime)
-		else
-			t = math.pow(0.9, dtime)
-			speed = speed * 0.9
-		end
-		self.object:setvelocity(vector.add(
-			vector.multiply(self.object:getvelocity(), t),
-			vector.multiply(vector.normalize(delta), speed * (1-t))
-		))
-		
+	local speed = self.move_speed * math.max(0, math.min(1, 0.8 * dist))
+	local t
+	local v = self.object:getvelocity()
+	if vector.length(v) < self.move_speed * 1.5 then
+		t = math.pow(0.1, dtime)
+	else
+		t = math.pow(0.9, dtime)
+		speed = speed * 0.9
+	end
+	self.object:setvelocity(vector.add(
+		vector.multiply(self.object:getvelocity(), t),
+		vector.multiply(vector.normalize(delta), speed * (1-t))
+	))
+	
+	if speed > self.move_speed * 0.04 then
 		local yaw = self.object:getyaw()
 		local yaw_delta = math.atan2(delta.z, delta.x) - yaw
 		if yaw_delta < -math.pi then
@@ -258,14 +263,8 @@ function mobs.move_method:air(dtime, destination)
 			yaw_delta = yaw_delta - math.pi * 2
 		end
 		self.object:setyaw(yaw + yaw_delta * (1-t))
-
-		if speed > self.move_speed * 0 then
-			self:set_animation("move", {"move_attack"})
-		else
-			self:set_animation("idle", {"attack", "move_attack"})
-		end
+		self:set_animation("move", {"move_attack"})
 	else
-		self.object:setvelocity({x=0, y=0, z=0})
 		self:set_animation("idle", {"attack", "move_attack"})
 	end
 end
@@ -283,61 +282,52 @@ function mobs.move_method:ground(dtime, destination)
 	})
 
 	local speed = self.move_speed * math.max(0, math.min(1, 0.8 * dist))
-	if speed > 0 then
-		local t
-		local v = self.object:getvelocity()
-		if self:is_standing() and vector.length(v) < self.move_speed * 3 then
-			t = math.pow(0.001, dtime)
-		else
-			t = math.pow(0.9, dtime)
-			speed = speed * 0.9
-		end
-		local dir = vector.normalize(delta)
-		local v2 = vector.add(
-			vector.multiply(v, t),
-			vector.multiply(dir, speed * (1-t))
-		)
-		v2.y = v.y
-		self.object:setvelocity(v2)
-
-		local yaw = self.object:getyaw()
-		local yaw_delta = math.atan2(dir.z, dir.x) - yaw
-		if yaw_delta < -math.pi then
-			yaw_delta = yaw_delta + math.pi * 2
-		elseif yaw_delta > math.pi then
-			yaw_delta = yaw_delta - math.pi * 2
-		end
-		self.object:setyaw(yaw + yaw_delta * (1-t))
-
-		-- Check for obstacle to jump
-		local jump = false
-		if dist > 1 then
-			local p = self.object:getpos()
-			p.y = p.y + self.collisionbox[2] + 0.5
-			local sx = self.collisionbox[4] - self.collisionbox[1]
-			local sz = self.collisionbox[6] - self.collisionbox[3]
-			local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
-			local node = minetest.get_node_or_nil(vector.add(p, vector.multiply(dir, r)))
-			if not node or minetest.registered_nodes[node.name].walkable then
-				jump = true
-			end
-		end
-
-		if jump then
-			self:jump(dir)
-		elseif self:is_standing() then
-			if speed > self.move_speed * 0.06 then
-				self:set_animation("move", {"move_attack"})
-			else
-				self:set_animation("idle", {"attack", "move_attack"})
-			end
-		end
+	local t
+	local v = self.object:getvelocity()
+	if self:is_standing() and vector.length(v) < self.move_speed * 3 then
+		t = math.pow(0.001, dtime)
 	else
-		local v = self.object:getvelocity()
-		v.x = 0
-		v.z = 0
-		self.object:setvelocity(v)
-		self:set_animation("idle", {"attack", "move_attack"})
+		t = math.pow(0.9, dtime)
+		speed = speed * 0.9
+	end
+	local dir = vector.normalize(delta)
+	local v2 = vector.add(
+		vector.multiply(v, t),
+		vector.multiply(dir, speed * (1-t))
+	)
+	v2.y = v.y
+	self.object:setvelocity(v2)
+
+	-- Check for obstacle to jump
+	local jump = false
+	if dist > 1 then
+		local p = self.object:getpos()
+		p.y = p.y + self.collisionbox[2] + 0.5
+		local sx = self.collisionbox[4] - self.collisionbox[1]
+		local sz = self.collisionbox[6] - self.collisionbox[3]
+		local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
+		local node = minetest.get_node_or_nil(vector.add(p, vector.multiply(dir, r)))
+		if not node or minetest.registered_nodes[node.name].walkable then
+			jump = true
+		end
+	end
+
+	if jump then
+		self:jump(dir)
+	elseif self:is_standing() then
+		if speed > self.move_speed * 0.06 then
+			local yaw = self.object:getyaw()
+			local yaw_delta = math.atan2(dir.z, dir.x) - yaw
+			if yaw_delta < -math.pi then
+				yaw_delta = yaw_delta + math.pi * 2
+			elseif yaw_delta > math.pi then
+				yaw_delta = yaw_delta - math.pi * 2
+			end
+			self.object:setyaw(yaw + yaw_delta * (1-t))
+			self:set_animation("move", {"move_attack"})
+		else
+			self:set_animation("idle", {"attack", "move_attack"})
+		end
 	end
 end
 
