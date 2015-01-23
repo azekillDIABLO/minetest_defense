@@ -2,6 +2,7 @@ defense.director = {}
 local director = defense.director
 director.call_interval = 1.0
 director.intensity_decay = 0.92
+director.max_entities = 50
 director.spawn_list = {
 	{
 		description = "Unggoy group",
@@ -84,7 +85,7 @@ function director:on_interval()
 	end
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() then
+		if defense:is_dark() and #minetest.luaentities < self.max_entities then
 			self:spawn_monsters()
 		end
 

@@ -56,9 +56,8 @@ defense.mobs.register_mob("defense:sarangay", {
 			local v = self.object:getvelocity()
 			v.y = 0
 			pos = vector.add(pos, vector.multiply(vector.normalize(v), 1.5))
-			local blocks = self:crash_blocks(pos, 4)
-			local entities = self:crash_entities(pos, 3)
-			self.charge_power = self.charge_power - blocks * 0.2 - entities * 0.05
+			self.charge_power = self:crash_blocks(pos, 4, self.charge_power/2) * 2
+			self.charge_power = self:crash_entities(pos, 3, self.charge_power/3) * 3
 
 			if self.charge_power < 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < self.move_speed/4) then
 				self:set_charging_state(false)
@@ -73,7 +72,7 @@ defense.mobs.register_mob("defense:sarangay", {
 					if math.random() < 0.1 then
 						self:set_charging_state(true)
 						self.destination = nil
-					elseif nearest.distance < 6 then
+					elseif nearest.distance < 4 then
 						self:hunt()
 					elseif not self.destination then
 						local nearest_pos = nearest.player:getpos()
@@ -101,8 +100,7 @@ defense.mobs.register_mob("defense:sarangay", {
 		end
 	end,
 
-	crash_blocks = function(self, pos, radius)
-		local hit_count = 0
+	crash_blocks = function(self, pos, radius, maxwear)
 		local p = {x=0, y=0, z=pos.z - radius}
 		for z = -radius, radius do
 			p.y = pos.y - radius
@@ -110,9 +108,13 @@ defense.mobs.register_mob("defense:sarangay", {
 				p.x = pos.x - radius
 				for x = -radius, radius do
 					if x*x + y*y + z*z <= radius then
-						if self:can_destroy_node(p) then
+						local wear = self:get_node_wear(p)
+						if wear > 0 then
 							minetest.dig_node(p)
-							hit_count = hit_count + 1
+							maxwear = maxwear - wear
+							if maxwear <= 0 then
+								return 0
+							end
 						end
 					end
 					p.x = p.x + 1
@@ -122,11 +124,10 @@ defense.mobs.register_mob("defense:sarangay", {
 			p.z = p.z + 1
 		end
 
-		return hit_count
+		return maxwear
 	end,
 
-	crash_entities = function(self, pos, radius)
-		local weight_count = 0
+	crash_entities = function(self, pos, radius, maxweight)
 		local myv = self.object:getvelocity()
 		for _,o in pairs(minetest.get_objects_inside_radius(pos, radius)) do
 			if o ~= self.object then
@@ -145,19 +146,37 @@ defense.mobs.register_mob("defense:sarangay", {
 						o:setvelocity(vector.add(v, vector.multiply(dir, 3/m)))
 					end
 
-					weight_count = weight_count + m
+					maxweight = maxweight - m
+					if maxweight <= 0 then
+						return 0
+					end
 				end
 			end
 		end
-		return weight_count
+
+		return maxweight
 	end,
 
-	can_destroy_node = function(self, pos)
+	get_node_wear = function(self, pos)
 		local node = minetest.get_node_or_nil(pos)
-		if not node or minetest.registered_nodes[node.name].walkable then
-			return true
+		local groupwear = {
+			crumbly = {[1]=0.5, [2]=0.1, [3]=0.1},
+			fleshy  = {[1]=1,   [2]=0.5, [3]=0.1},
+			snappy  = {[1]=1.5, [2]=1,   [3]=0.5},
+			choppy  = {[1]=2,   [2]=1,   [3]=0.5},
+			cracky  = {[1]=4,   [2]=2,   [3]=1},
+		}
+		if node then
+			local wear = 0
+			for k,v in pairs(groupwear) do
+				local rating = minetest.get_item_group(node.name, k)
+				if v[rating] and v[rating] > wear then
+					wear = v[rating]
+				end
+			end
+			return wear
 		else
-			return false
+			return 0
 		end
 	end,
 })
