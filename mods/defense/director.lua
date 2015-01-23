@@ -57,8 +57,9 @@ director.spawn_list = {
 		intensity_min = 0,
 		intensity_max = 0.3,
 		group_min = 1,
-		group_max = 1,
+		-- 
 		probability = 0.2,
+		group_max = 1,
 		day_start = 1,
 		spawn_time = 21.0,
 		spawn_location = "air",

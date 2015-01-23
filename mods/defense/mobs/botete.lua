@@ -69,20 +69,72 @@ defense.mobs.register_mob("defense:botete", {
 	end,
 })
 
--- Botete's projectile
+-- Goo projectile
 minetest.register_entity("defense:gooball", {
 	physical = false,
 	visual = "sprite",
 	visual_size = {x=1, y=1},
 	textures = {"defense_gooball.png"},
+
 	on_activate = function(self, staticdata)
 		self.object:setacceleration({x=0, y=defense.mobs.gravity, z=0})
 	end,
+
 	on_step = function(self, dtime)
 		local pos = self.object:getpos()
 		if minetest.get_node(pos).name ~= "air" then
-			-- self:on_hit()
+			local space = pos
+			local back = vector.multiply(vector.normalize(self.object:getvelocity()), -1)
+			local node
+			repeat
+				space = vector.add(space, back)
+				node = minetest.get_node_or_nil(space)
+			until not node or node.name == "air" or node.name == "defense:goo"
+			self:hit(space)
 			self.object:remove()
 		end
+	end,
+
+	hit = function(self, pos)
+		minetest.set_node(pos, {name="defense:goo"})
+	end,
+})
+
+-- Goo node
+minetest.register_node("defense:goo", {
+	description = "Caustic Goo",
+	tiles = {"defense_goo.png"},
+	inventory_image = "defense_gooball.png",
+	drop = "",
+	groups = {crumbly=3},
+	walkable = false,
+	buildable_to = false,
+	damage_per_second = 1,
+	paramtype = "light",
+	paramtype2 = "facedir",
+	drawtype = "nodebox",
+	node_box = {
+		type = "fixed",
+		fixed = {-0.5, -0.5, -0.5, 0.5, -0.5+2/16, 0.5},
+	},
+})
+
+minetest.register_node("defense:goo_block", {
+	description = "Caustic Goo Block",
+	tiles = {"defense_goo.png"},
+	-- inventory_image = "defense_goo.png",
+	drop = "",
+	groups = {crumbly=3},
+	walkable = false,
+	buildable_to = false,
+	damage_per_second = 1,
+})
+
+minetest.register_abm({
+	nodenames = {"defense:goo", "defense:goo_block"},
+	interval = 1,
+	chance = 30,
+	action = function(pos, node)
+		minetest.remove_node(pos)
 	end,
 })
