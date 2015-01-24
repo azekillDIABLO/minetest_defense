@@ -25,7 +25,7 @@ director.spawn_list = {
 		group_max = 24,
 		probability = 0.8,
 		day_start = 1,
-		spawn_time = 21.0,
+		spawn_time = 40.0,
 		spawn_location = "ground",
 	},
 	{
@@ -37,14 +37,14 @@ director.spawn_list = {
 		group_max = 4,
 		probability = 0.2,
 		day_start = 0,
-		spawn_time = 14.0,
+		spawn_time = 19.0,
 		spawn_location = "air",
 	},
 	{
 		description = "Sarangay",
 		name = "defense:sarangay",
 		intensity_min = 0,
-		intensity_max = 0.2,
+		intensity_max = 0.1,
 		group_min = 1,
 		group_max = 1,
 		probability = 0.2,
@@ -56,10 +56,10 @@ director.spawn_list = {
 		description = "Botete",
 		name = "defense:botete",
 		intensity_min = 0,
-		intensity_max = 0.3,
+		intensity_max = 0.1,
 		group_min = 1,
 		-- 
-		probability = 0.2,
+		probability = 0.1,
 		group_max = 1,
 		day_start = 1,
 		spawn_time = 21.0,
@@ -239,7 +239,7 @@ function director:update_intensity()
 	local mob_count = #minetest.luaentities
 
 	local delta =
-		  -0.1 * math.min(0.1, average_health - last_average_health)
+		  -0.2 * math.min(0.06, average_health - last_average_health)
 		+ 0.2 * math.min(0, 1 / average_health - 0.1)
 		+ 0.0001 * (mob_count - last_mob_count)
 
