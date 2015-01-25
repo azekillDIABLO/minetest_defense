@@ -149,9 +149,10 @@ function mobs.default_prototype:jump(direction)
 		direction = vector.normalize(direction)
 		local v = self.object:getvelocity()
 		v.y = math.sqrt(2 * -mobs.gravity * (self.jump_height + 0.2))
-		v.x = direction.x * v.y
-		v.z = direction.z * v.y
-		self.object:setvelocity(v)
+		v.x = direction.x * self.jump_height
+		v.z = direction.z * self.jump_height
+		self.object:setvelocity(vector.add(self.object:getvelocity(), v))
+		self.object:setyaw(math.atan2(direction.z, direction.x))
 		self:set_animation("jump")
 	end
 end
@@ -248,7 +249,7 @@ function mobs.move_method:air(dtime, destination)
 	if vector.length(v) < self.move_speed * 1.5 then
 		t = math.pow(0.1, dtime)
 	else
-		t = math.pow(0.9, dtime)
+		t = math.pow(0.8, dtime)
 		speed = speed * 0.9
 	end
 	self.object:setvelocity(vector.add(
@@ -265,7 +266,7 @@ function mobs.move_method:air(dtime, destination)
 			yaw_delta = yaw_delta - math.pi * 2
 		end
 		self.object:setyaw(yaw + yaw_delta * (1-t))
-		self:set_animation("move", {"move_attack"})
+		self:set_animation("move", {"attack", "move_attack"})
 	else
 		self:set_animation("idle", {"attack", "move_attack"})
 	end
@@ -286,10 +287,10 @@ function mobs.move_method:ground(dtime, destination)
 	local speed = self.move_speed * math.max(0, math.min(1, 0.8 * dist))
 	local t
 	local v = self.object:getvelocity()
-	if self:is_standing() and vector.length(v) < self.move_speed * 3 then
+	if self:is_standing() and vector.length(v) < self.move_speed * 4 then
 		t = math.pow(0.001, dtime)
 	else
-		t = math.pow(0.9, dtime)
+		t = math.pow(0.7, dtime)
 		speed = speed * 0.9
 	end
 	local dir = vector.normalize(delta)
@@ -309,6 +310,7 @@ function mobs.move_method:ground(dtime, destination)
 		local sz = self.collisionbox[6] - self.collisionbox[3]
 		local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
 		local fronts = {
+			{x = dir.x * self.jump_height, y = 0, z = dir.z * self.jump_height},
 			{x = dir.x * r, y = 0, z = dir.z * r},
 			{x = dir.x + dir.z * r, y = 0, z = dir.z + dir.x * r},
 			{x = dir.x - dir.z * r, y = 0, z = dir.z - dir.x * r},
@@ -323,7 +325,7 @@ function mobs.move_method:ground(dtime, destination)
 	end
 
 	if jump then
-		self:jump(dir)
+		self:jump(vector.direction(self.object:getpos(), destination))
 	elseif self:is_standing() then
 		if speed > self.move_speed * 0.06 then
 			local yaw = self.object:getyaw()

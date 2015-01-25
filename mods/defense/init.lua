@@ -17,6 +17,16 @@ minetest.register_chatcommand("debug", {
 	end,
 })
 
+function minetest.wallmounted_to_dir(wallmounted)
+	return ({[0]={x=0, y=1, z=0},
+		     {x=0, y=-1, z=0},
+		     {x=1, y=0, z=0},
+		     {x=-1, y=0, z=0},
+		     {x=0, y=0, z=1},
+		     {x=0, y=0, z=-1}})
+			[wallmounted]
+end
+
 local modpath = minetest.get_modpath("defense")
 local function dofile2(file)
 	dofile(modpath .. "/" .. file)
@@ -24,7 +34,7 @@ end
 
 function defense:is_dark()
 	local tod = minetest.get_timeofday()
-	return tod < 0.22 or tod > 0.8 or defense.debug
+	return tod < 0.21 or tod > 0.8 or defense.debug
 end
 
 dofile2("mob.lua")

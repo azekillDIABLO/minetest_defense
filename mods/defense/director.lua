@@ -25,7 +25,7 @@ director.spawn_list = {
 		group_max = 24,
 		probability = 0.8,
 		day_start = 1,
-		spawn_time = 40.0,
+		spawn_time = 41.0,
 		spawn_location = "ground",
 	},
 	{
@@ -49,7 +49,7 @@ director.spawn_list = {
 		group_max = 1,
 		probability = 0.2,
 		day_start = 3,
-		spawn_time = 19.0,
+		spawn_time = 90.0,
 		spawn_location = "ground",
 	},
 	{
@@ -58,15 +58,15 @@ director.spawn_list = {
 		intensity_min = 0,
 		intensity_max = 0.1,
 		group_min = 1,
-		-- 
-		probability = 0.1,
 		group_max = 1,
+		probability = 0.1,
 		day_start = 1,
-		spawn_time = 21.0,
+		spawn_time = 90.0,
 		spawn_location = "air",
 	},
 }
 
+-- State tracking stuff
 director.intensity = 0.5
 director.cooldown_timer = 3
 
@@ -74,18 +74,15 @@ local spawn_timers = {}
 local last_average_health = 1.0
 local last_mob_count = 0
 
-for i,m in ipairs(director.spawn_list) do
+for _,m in ipairs(director.spawn_list) do
 	spawn_timers[m.description] = m.spawn_time/2
 end
 
 function director:on_interval()
 	self:update_intensity()
-	if defense.debug then
-		minetest.chat_send_all("Intensity: " .. self.intensity)
-	end
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() and #minetest.luaentities < self.max_entities then
+		if defense:is_dark() and #minetest.luaentities < self.max_entities and not defense.debug then
 			self:spawn_monsters()
 		end
 

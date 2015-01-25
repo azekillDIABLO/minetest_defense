@@ -6,7 +6,7 @@ defense.mobs.register_mob("defense:sarangay", {
 	textures = {"defense_sarangay.png"},
 	makes_footstep_sound = true,
 
-	animation = nil,
+	animation = {},
 
 	normal_animation = {
 		idle = {a=0, b=19, rate=10},
@@ -28,7 +28,7 @@ defense.mobs.register_mob("defense:sarangay", {
 	},
 
 	mass = 12,
-	move_speed = 4,
+	move_speed = 6,
 	jump_height = 1,
 	armor = 0,
 	attack_damage = 4,
@@ -46,20 +46,22 @@ defense.mobs.register_mob("defense:sarangay", {
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
 		if self.charging then
+			minetest.chat_send_all(self.charge_power)
+
 			if self.charge_power > 0.5 then
 				self:hunt()
 			end
 
 			-- Break obstacles
 			local pos = self.object:getpos()
-			pos.y = pos.y + 2.5
+			pos.y = pos.y + 1.5
 			local v = self.object:getvelocity()
 			v.y = 0
 			pos = vector.add(pos, vector.multiply(vector.normalize(v), 1.5))
-			self.charge_power = self:crash_blocks(pos, 4, self.charge_power/2) * 2
-			self.charge_power = self:crash_entities(pos, 3, self.charge_power/3) * 3
+			self.charge_power = self:crash_blocks(pos, 3, self.charge_power)
+			self.charge_power = self:crash_entities(pos, 3, self.charge_power * 4) / 4
 
-			if self.charge_power < 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < self.move_speed/4) then
+			if self.charge_power <= 0 or (self.charge_power > 1 and vector.length(self.object:getvelocity()) < self.move_speed/4) then
 				self:set_charging_state(false)
 				self.destination = nil
 			else
@@ -68,16 +70,15 @@ defense.mobs.register_mob("defense:sarangay", {
 		else
 			local nearest = self:find_nearest_player()
 			if nearest then
-				if math.abs(self.object:getpos().y - nearest.player:getpos().y) < 4 then
-					if math.random() < 0.1 then
+				if math.abs(self.object:getpos().y - nearest.position.y) < 4 then
+					if nearest.distance > 4 and math.random() < 0.1 then
 						self:set_charging_state(true)
 						self.destination = nil
 					elseif nearest.distance < 4 then
 						self:hunt()
-					elseif not self.destination then
-						local nearest_pos = nearest.player:getpos()
-						local dir = vector.direction(nearest_pos, self.object:getpos())
-						self.destination = vector.add(nearest_pos, vector.multiply(dir, math.random() * 16))
+					else
+						local dir = vector.direction(nearest.position, self.object:getpos())
+						self.destination = vector.add(nearest.position, vector.multiply(dir, 12))
 					end
 				else
 					self:hunt()
@@ -87,14 +88,15 @@ defense.mobs.register_mob("defense:sarangay", {
 	end,
 
 	set_charging_state = function(self, state)
+		minetest.chat_send_all(dump(state))
 		self.charging = state
 		if state then
-			self.charge_power = 0
-			self.move_speed = 8
+			self.charge_power = 0.1
+			self.move_speed = 9
 			self.animation = self.charging_animation
 			self:set_animation("charge")
 		else
-			self.move_speed = 4
+			self.move_speed = 6
 			self.animation = self.normal_animation
 			self:set_animation("attack")
 		end
@@ -138,7 +140,7 @@ defense.mobs.register_mob("defense:sarangay", {
 
 				local e = o:get_luaentity()
 				if e then
-					local m = e.mass or 1
+					local m = e.mass or 10
 					local v = vector.add(o:getvelocity(), vector.multiply(myv, 1/m))
 					if v then
 						local dir = vector.direction(self.object:getpos(), o:getpos())
@@ -160,11 +162,11 @@ defense.mobs.register_mob("defense:sarangay", {
 	get_node_wear = function(self, pos)
 		local node = minetest.get_node_or_nil(pos)
 		local groupwear = {
-			crumbly = {[1]=0.5, [2]=0.1, [3]=0.1},
-			fleshy  = {[1]=1,   [2]=0.5, [3]=0.1},
-			snappy  = {[1]=1.5, [2]=1,   [3]=0.5},
-			choppy  = {[1]=2,   [2]=1,   [3]=0.5},
-			cracky  = {[1]=4,   [2]=2,   [3]=1},
+			crumbly = {[1]=2, [2]=1, [3]=1},
+			fleshy  = {[1]=3,   [2]=2, [3]=1},
+			snappy  = {[1]=4, [2]=3.5,   [3]=3},
+			choppy  = {[1]=5,   [2]=4.5,   [3]=4},
+			cracky  = {[1]=6,   [2]=5,   [3]=4},
 		}
 		if node then
 			local wear = 0

@@ -34,9 +34,9 @@ local function place_goo(pos, life)
 			end
 		end
 		if dir then
-			local facedir = minetest.dir_to_facedir(dir, true)
+			local wallmounted = minetest.dir_to_wallmounted(dir)
 			if minetest.registered_nodes[node.name].buildable_to then
-				minetest.set_node(pos, {name="defense:goo", param2=facedir})
+				minetest.set_node(pos, {name="defense:goo", param2=wallmounted})
 				minetest.get_meta(pos):set_int("life", life)
 				return true
 			end
@@ -94,7 +94,7 @@ local function spread_goo(pos)
 
 			local dir = nil
 			if node.name == "defense:goo" then
-				dir = minetest.facedir_to_dir(node.param2)
+				dir = minetest.wallmounted_to_dir(node.param2)
 			else
 				dir = dirs[4]
 			end
@@ -130,9 +130,9 @@ defense.mobs.register_mob("defense:botete", {
 
 	animation = {
 		idle = {a=0, b=39, rate=20},
-		attack = {a=40, b=79, rate=50},
+		attack = {a=80, b=99, rate=25},
 		move = {a=40, b=79, rate=25},
-		move_attack = {a=40, b=79, rate=25},
+		move_attack = {a=80, b=99, rate=25},
 	},
 
 	mass = 1,
@@ -216,7 +216,7 @@ minetest.register_entity("defense:gooball", {
 				space = vector.add(space, back)
 				bnode = minetest.get_node_or_nil(space)
 			until not bnode or bnode.name == "air"
-			place_goo(space, 12)
+			place_goo(space, 6)
 			self.object:remove()
 		end
 	end,
@@ -233,10 +233,10 @@ minetest.register_node("defense:goo", {
 	drawtype = "nodebox",
 	node_box = {
 		type = "fixed",
-		fixed = {-0.5, -0.5, 0.5-2/16, 0.5, 0.5, 0.5},
+		fixed = {-0.5, -0.5, -0.5, 0.5, -0.5+2/16, 0.5},
 	},
 	paramtype = "light",
-	paramtype2 = "facedir",
+	paramtype2 = "wallmounted",
 	liquid_viscosity = 4,
 	liquidtype = "source",
 	liquid_alternative_flowing = "defense:goo",
