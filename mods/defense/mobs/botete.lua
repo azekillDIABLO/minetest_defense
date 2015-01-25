@@ -1,6 +1,8 @@
-local function place_goo(pos, origin)
-	if not origin then
-		origin = pos
+local function place_goo(pos, life)
+	if life == nil then
+		life = 1
+	elseif life <= 0 then
+		return false
 	end
 
 	local node = minetest.get_node_or_nil(pos)
@@ -9,8 +11,9 @@ local function place_goo(pos, origin)
 	end
 
 	if node.name == "defense:goo" then
-		-- minetest.place_node(pos, {name="defense:goo_block"})
-		-- minetest.get_meta(pos):set_string("origin", minetest.pos_to_string(origin))
+		minetest.dig_node(pos)
+		minetest.set_node(pos, {name="defense:goo_block"})
+		minetest.get_meta(pos):set_int("life", life)
 		return true
 	else
 		local dirs = {
@@ -33,8 +36,8 @@ local function place_goo(pos, origin)
 		if dir then
 			local facedir = minetest.dir_to_facedir(dir, true)
 			if minetest.registered_nodes[node.name].buildable_to then
-				-- minetest.set_node(pos, {name="defense:goo", param2=facedir})
-				-- minetest.get_meta(pos):set_string("origin", minetest.pos_to_string(origin))
+				minetest.set_node(pos, {name="defense:goo", param2=facedir})
+				minetest.get_meta(pos):set_int("life", life)
 				return true
 			end
 		end
@@ -43,47 +46,76 @@ local function place_goo(pos, origin)
 	return false
 end
 
-local function spread_goo(pos, origin)
-	if origin and vector.distance(pos, origin) > 2 then
-		return
+local function goo_consume(pos, life)
+	local node = minetest.get_node_or_nil(pos)
+	if not node or node.name == "air" then
+		return false
 	end
 
+	local neighbors = {
+		{x = 1, y = 0, z = 0},
+		{x =-1, y = 0, z = 0},
+		{x = 0, y = 1, z = 0},
+		{x = 0, y =-1, z = 0},
+		{x = 0, y = 0, z = 1},
+		{x = 0, y = 0, z =-1},
+	}
+
+	local count = 0
+	for _,n in ipairs(neighbors) do
+		local neighbor = minetest.get_node_or_nil(vector.add(pos, n))
+		if neighbor and minetest.get_item_group(neighbor.name, "caustic_goo") > 0 then
+			count = count + 1
+		end
+	end
+
+	if count >= math.random(2,5) then
+		minetest.dig_node(pos)
+		minetest.set_node(pos, {name="defense:goo_block"})
+		minetest.get_meta(pos):set_int("life", life)
+	end
+end
+
+local function spread_goo(pos)
 	local node = minetest.get_node_or_nil(pos)
 	if node then
-		local dirs = {
-			{x = 1, y = 0, z = 0},
-			{x =-1, y = 0, z = 0},
-			{x = 0, y = 1, z = 0},
-			{x = 0, y =-1, z = 0},
-			{x = 0, y = 0, z = 1},
-			{x = 0, y = 0, z =-1},
-		}
-		if node.name == "defense:goo" then
-			local dir = minetest.facedir_to_dir(node.param2)
+		local life = minetest.get_meta(pos):get_int("life") or 0
+		if life > 1 then
+			minetest.get_meta(pos):set_int("life", life - 1)
+
+			local dirs = {
+				{x = 1, y = 0, z = 0},
+				{x =-1, y = 0, z = 0},
+				{x = 0, y = 1, z = 0},
+				{x = 0, y =-1, z = 0},
+				{x = 0, y = 0, z = 1},
+				{x = 0, y = 0, z =-1},
+			}
+
+			local dir = nil
+			if node.name == "defense:goo" then
+				dir = minetest.facedir_to_dir(node.param2)
+			else
+				dir = dirs[4]
+			end
+
+			goo_consume(vector.add(pos, dir), life - 1)
 			for _,d in ipairs(dirs) do
 				local dot_product = d.x * dir.x + d.y * dir.y + d.z * dir.z
 				if dot_product == 0 then
 					if math.random() < 0.25 then
 						local npos = vector.add(pos, d)
-						if not place_goo(vector.add(npos, dir), origin) then
-							if not place_goo(npos, origin) then
-								place_goo(vector.subtract(npos, dir), origin)
+						if not place_goo(vector.add(npos, dir), life - 1) then
+							if not place_goo(npos, life - 1) then
+								place_goo(vector.subtract(npos, dir), life - 1)
 							end
 						end
 					end
 				end
 			end
-		else
-			for _,d in ipairs(dirs) do
-				if math.random() < 0.17 then
-					local npos = vector.add(pos, d)
-					minetest.dig_node(npos)
-					place_goo(npos, origin)
-				end
-			end
 		end
 
-		if math.random() < 0.1 then
+		if life <= 1 and math.random() < 0.2 then
 			minetest.dig_node(pos)
 		end
 	end
@@ -184,7 +216,7 @@ minetest.register_entity("defense:gooball", {
 				space = vector.add(space, back)
 				bnode = minetest.get_node_or_nil(space)
 			until not bnode or bnode.name == "air"
-			place_goo(space)
+			place_goo(space, 12)
 			self.object:remove()
 		end
 	end,
@@ -211,24 +243,18 @@ minetest.register_node("defense:goo", {
 	liquid_alternative_source = "defense:goo",
 	liquid_renewable = false,
 	liquid_range = 0,
-	groups = {caustic_goo=1, crumbly=3, dig_immediate=3, liquid=3, disable_jump=1},
+	groups = {caustic_goo=1, crumbly=3, dig_immediate=3, liquid=3, attached_node=1, disable_jump=1},
 	drop = "",
 	walkable = false,
 	buildable_to = false,
 	damage_per_second = 1,
 
 	on_construct = function(pos)
-		minetest.get_node_timer(pos):start(1 + math.random() * 9)
-		local meta = minetest.get_meta(pos)
-		local origin = meta:get_string("origin")
-		if not origin then
-			meta:set_string("origin", minetest.pos_to_string(pos))
-		end
+		minetest.get_node_timer(pos):start(1 + math.random() * 4)
 	end,
 
 	on_timer = function(pos, elapsed)
-		local meta = minetest.get_meta(pos)
-		spread_goo(pos, minetest.string_to_pos(meta:get_string("origin")))
+		spread_goo(pos)
 		return true
 	end,
 })
@@ -240,7 +266,7 @@ minetest.register_node("defense:goo_block", {
 		name="defense_goo.png",
 		animation={type="vertical_frames", aspect_w=16, aspect_h=16, length=0.7}
 	}},
-	drawtype = "glasslike",
+	drawtype = "allfaces",
 	paramtype = "light",
 	liquid_viscosity = 8,
 	liquidtype = "source",
@@ -249,24 +275,18 @@ minetest.register_node("defense:goo_block", {
 	liquid_renewable = false,
 	liquid_range = 0,
 	post_effect_color = {r=100, g=240, b=0, a=240},
-	groups = {caustic_goo=1, crumbly=3, dig_immediate=3, liquid=3, disable_jump=1},
+	groups = {caustic_goo=1, crumbly=3, dig_immediate=3, liquid=3, falling_node=1, disable_jump=1},
 	drop = "",
 	walkable = false,
 	buildable_to = false,
 	damage_per_second = 1,
 
 	on_construct = function(pos)
-		minetest.get_node_timer(pos):start(1 + math.random() * 15)
-		local meta = minetest.get_meta(pos)
-		local origin = meta:get_string("origin")
-		if not origin then
-			meta:set_string("origin", minetest.pos_to_string(pos))
-		end
+		minetest.get_node_timer(pos):start(0.5 + math.random() * 2)
 	end,
 
 	on_timer = function(pos, elapsed)
-		local meta = minetest.get_meta(pos)
-		spread_goo(pos, minetest.string_to_pos(meta:get_string("origin")))
+		spread_goo(pos)
 		return true
 	end,
 })

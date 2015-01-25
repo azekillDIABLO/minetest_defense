@@ -129,12 +129,12 @@ defense.mobs.register_mob("defense:sarangay", {
 
 	crash_entities = function(self, pos, radius, maxweight)
 		local myv = self.object:getvelocity()
-		for _,o in pairs(minetest.get_objects_inside_radius(pos, radius)) do
+		for _,o in ipairs(minetest.get_objects_inside_radius(pos, radius)) do
 			if o ~= self.object then
-				o:punch(self.object, 1.0,  {
-					full_punch_interval=1.0,
-					damage_groups = {fleshy=1}
-				}, nil)
+				-- o:punch(self.object, 1.0,  {
+				-- 	full_punch_interval=1.0,
+				-- 	damage_groups = {fleshy=1}
+				-- }, nil)
 
 				local e = o:get_luaentity()
 				if e then

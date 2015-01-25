@@ -86,7 +86,8 @@ function mobs.default_prototype:on_punch(puncher, time_from_last_punch, tool_cap
 	end
 
 	dir.y = dir.y + 1
-	local knockback = vector.multiply(vector.normalize(dir), 10 / (1 + self.mass))
+	local m = self.mass or 1
+	local knockback = vector.multiply(vector.normalize(dir), 10 / (1 + m))
 	self.object:setvelocity(vector.add(self.object:getvelocity(), knockback))
 	self.pause_timer = 0.3
 
@@ -307,9 +308,17 @@ function mobs.move_method:ground(dtime, destination)
 		local sx = self.collisionbox[4] - self.collisionbox[1]
 		local sz = self.collisionbox[6] - self.collisionbox[3]
 		local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
-		local node = minetest.get_node_or_nil(vector.add(p, vector.multiply(dir, r)))
-		if not node or minetest.registered_nodes[node.name].walkable then
-			jump = true
+		local fronts = {
+			{x = dir.x * r, y = 0, z = dir.z * r},
+			{x = dir.x + dir.z * r, y = 0, z = dir.z + dir.x * r},
+			{x = dir.x - dir.z * r, y = 0, z = dir.z - dir.x * r},
+		}
+		for _,f in ipairs(fronts) do
+			local node = minetest.get_node_or_nil(vector.add(p, f))
+			if not node or minetest.registered_nodes[node.name].walkable then
+				jump = true
+				break
+			end
 		end
 	end
 
