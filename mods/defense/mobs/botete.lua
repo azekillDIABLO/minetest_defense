@@ -216,7 +216,7 @@ minetest.register_entity("defense:gooball", {
 				space = vector.add(space, back)
 				bnode = minetest.get_node_or_nil(space)
 			until not bnode or bnode.name == "air"
-			place_goo(space, 9)
+			place_goo(space, 8)
 			self.object:remove()
 		end
 	end,
