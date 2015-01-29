@@ -22,7 +22,7 @@ function music:update()
 		intensity = intensity * 0.1
 	end
 	last_intensity = intensity
-	intensity = intensity + (intensity - last_intensity) * 0.5
+	intensity = intensity + (intensity - last_intensity) * 3
 
 	local il = {0.1, 0.5, 0.8, 0.99}
 	local last_level = current_level
@@ -59,7 +59,7 @@ function music:update()
 			minetest.chat_send_all("Level: " .. current_level)
 		end
 		minetest.sound_play("defense_music_transit", {
-			gain = 0.05
+			gain = 0.1 + last_level * 0.1
 		})
 		if current_music then
 			minetest.sound_stop(current_music)
@@ -67,7 +67,7 @@ function music:update()
 		if current_level > 0 then
 			current_music = minetest.sound_play("defense_music_level" .. current_level, {
 				pos = nil,
-				gain = 0.4 + current_level * 0.15,
+				gain = 0.1 + current_level * 0.2,
 				loop = true,
 			})
 		end
