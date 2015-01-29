@@ -10,10 +10,10 @@ director.spawn_list = {
 		intensity_min = 0.0,
 		intensity_max = 0.6,
 		group_min = 1,
-		group_max = 6,
-		probability = 0.5,
+		group_max = 4,
+		probability = 0.4,
 		day_start = 0,
-		spawn_time = 7.0,
+		spawn_time = 14.0,
 		spawn_location = "ground",
 	},
 	{
@@ -25,41 +25,41 @@ director.spawn_list = {
 		group_max = 24,
 		probability = 0.8,
 		day_start = 1,
-		spawn_time = 41.0,
+		spawn_time = 71.0,
 		spawn_location = "ground",
 	},
 	{
 		description = "Paniki group",
 		name = "defense:paniki",
 		intensity_min = 0.0,
-		intensity_max = 0.4,
+		intensity_max = 0.3,
 		group_min = 1,
-		group_max = 4,
-		probability = 0.2,
+		group_max = 6,
+		probability = 0.6,
 		day_start = 0,
-		spawn_time = 19.0,
+		spawn_time = 9.0,
 		spawn_location = "air",
 	},
 	{
 		description = "Sarangay",
 		name = "defense:sarangay",
-		intensity_min = 0,
-		intensity_max = 0.1,
+		intensity_min = 0.0,
+		intensity_max = 0.2,
 		group_min = 1,
 		group_max = 1,
-		probability = 0.2,
-		day_start = 3,
+		probability = 0.4,
+		day_start = 2,
 		spawn_time = 90.0,
 		spawn_location = "ground",
 	},
 	{
 		description = "Botete",
 		name = "defense:botete",
-		intensity_min = 0,
-		intensity_max = 0.1,
+		intensity_min = 0.0,
+		intensity_max = 0.3,
 		group_min = 1,
 		group_max = 1,
-		probability = 0.1,
+		probability = 0.4,
 		day_start = 1,
 		spawn_time = 90.0,
 		spawn_location = "air",
@@ -80,9 +80,12 @@ end
 
 function director:on_interval()
 	self:update_intensity()
+	if defense.debug then
+		minetest.chat_send_all("Intensity: " .. self.intensity)
+	end
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() and #minetest.luaentities < self.max_entities and not defense.debug then
+		if defense:is_dark() and #minetest.luaentities < self.max_entities then
 			self:spawn_monsters()
 		end
 
@@ -236,9 +239,9 @@ function director:update_intensity()
 	local mob_count = #minetest.luaentities
 
 	local delta =
-		  -0.2 * math.min(0.06, average_health - last_average_health)
-		+ 0.2 * math.min(0, 1 / average_health - 0.1)
-		+ 0.0001 * (mob_count - last_mob_count)
+		  -0.16 * math.min(0.06, average_health - last_average_health)
+		+ 2.0 * math.min(0, 1 / average_health)
+		+ 0.006 * (mob_count - last_mob_count)
 
 	last_average_health = average_health
 	last_mob_count = mob_count
@@ -250,15 +253,6 @@ function director:get_day_count()
 	local time_speed = minetest.setting_get("time_speed")
 	return math.floor(minetest.get_gametime() * time_speed / 86400)
 end
-
-local last_call_time = 0
-minetest.register_globalstep(function(dtime)
-	local gt = minetest.get_gametime()
-	if last_call_time + director.call_interval < gt then
-		director:on_interval()
-		last_call_time = gt
-	end
-end)
 
 function director:save()
 	local file = assert(io.open(minetest.get_worldpath() .. "/defense.txt", "w"))
@@ -292,3 +286,12 @@ minetest.register_on_shutdown(function()
 	director:save()
 end)
 director:load()
+
+local last_call_time = 0
+minetest.register_globalstep(function(dtime)
+	local gt = minetest.get_gametime()
+	if last_call_time + director.call_interval < gt then
+		director:on_interval()
+		last_call_time = gt
+	end
+end)

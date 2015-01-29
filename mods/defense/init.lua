@@ -11,7 +11,7 @@ minetest.register_chatcommand("debug", {
 			regeneration.rate = 100
 			minetest.set_timeofday(0.3)
 		else
-			regeneration.rate = 0.1
+			regeneration.rate = 0.2
 		end
 		return true
 	end,
@@ -44,4 +44,5 @@ dofile2("mobs/paniki.lua")
 dofile2("mobs/botete.lua")
 
 dofile2("director.lua")
+dofile2("music.lua")
 dofile2("initial_stuff.lua")
