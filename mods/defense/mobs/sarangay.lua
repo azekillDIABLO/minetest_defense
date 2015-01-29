@@ -46,8 +46,6 @@ defense.mobs.register_mob("defense:sarangay", {
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
 		if self.charging then
-			minetest.chat_send_all(self.charge_power)
-
 			if self.charge_power > 0.5 then
 				self:hunt()
 			end
@@ -70,25 +68,20 @@ defense.mobs.register_mob("defense:sarangay", {
 		else
 			local nearest = self:find_nearest_player()
 			if nearest then
-				if math.abs(self.object:getpos().y - nearest.position.y) < 4 then
-					if nearest.distance > 4 and math.random() < 0.1 then
-						self:set_charging_state(true)
-						self.destination = nil
-					elseif nearest.distance < 4 then
-						self:hunt()
-					else
-						local dir = vector.direction(nearest.position, self.object:getpos())
-						self.destination = vector.add(nearest.position, vector.multiply(dir, 12))
-					end
-				else
+				if nearest.distance > 4 and math.random() < 0.1 then
+					self:set_charging_state(true)
+					self.destination = nil
+				elseif nearest.distance < 4 then
 					self:hunt()
+				else
+					local dir = vector.direction(nearest.position, self.object:getpos())
+					self.destination = vector.add(nearest.position, vector.multiply(dir, 12))
 				end
 			end
 		end
 	end,
 
 	set_charging_state = function(self, state)
-		minetest.chat_send_all(dump(state))
 		self.charging = state
 		if state then
 			self.charge_power = 0.1

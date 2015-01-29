@@ -216,7 +216,7 @@ minetest.register_entity("defense:gooball", {
 				space = vector.add(space, back)
 				bnode = minetest.get_node_or_nil(space)
 			until not bnode or bnode.name == "air"
-			place_goo(space, 6)
+			place_goo(space, 9)
 			self.object:remove()
 		end
 	end,
@@ -234,6 +234,9 @@ minetest.register_node("defense:goo", {
 	node_box = {
 		type = "fixed",
 		fixed = {-0.5, -0.5, -0.5, 0.5, -0.5+2/16, 0.5},
+	},
+	selection_box = {
+		type = "wallmounted",
 	},
 	paramtype = "light",
 	paramtype2 = "wallmounted",

@@ -1,5 +1,5 @@
 defense.mobs.register_mob("defense:unggoy", {
-	hp_max = 3,
+	hp_max = 11,
 	collisionbox = {-0.4,-0.01,-0.4, 0.4,1.5,0.4},
 	mesh = "defense_unggoy.b3d",
 	textures = {"defense_unggoy.png"},
@@ -49,6 +49,25 @@ defense.mobs.register_mob("defense:unggoy", {
 			else
 				self:hunt()
 			end
+		end
+	end,
+
+	is_standing = function(self)
+		-- Able to stand on top of others
+		if defense.mobs.default_prototype.is_standing(self) then
+			return true
+		else
+			local pos = self.object:getpos()
+			pos.y = pos.y - 1
+			for _,o in ipairs(minetest.get_objects_inside_radius(pos, 1)) do
+				if o ~= self.object then
+					local e = o:get_luaentity()
+					if e and e.name == self.name then
+						return true
+					end
+				end
+			end
+			return false
 		end
 	end,
 })

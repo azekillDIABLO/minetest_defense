@@ -1,5 +1,5 @@
 defense.mobs.register_mob("defense:paniki", {
-	hp_max = 3,
+	hp_max = 7,
 	collisionbox = {-0.3,-0.3,-0.3, 0.3,0.3,0.3},
 	mesh = "defense_paniki.b3d",
 	textures = {"defense_paniki.png"},
@@ -17,7 +17,7 @@ defense.mobs.register_mob("defense:paniki", {
 	move_speed = 16,
 	attack_damage = 1,
 	attack_range = 1.1,
-	attack_interval = 0.8,
+	attack_interval = 1.2,
 
 	rank = 0,
 	leader = nil,
