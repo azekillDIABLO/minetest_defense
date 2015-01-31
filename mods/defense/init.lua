@@ -17,16 +17,6 @@ minetest.register_chatcommand("debug", {
 	end,
 })
 
-function minetest.wallmounted_to_dir(wallmounted)
-	return ({[0]={x=0, y=1, z=0},
-		     {x=0, y=-1, z=0},
-		     {x=1, y=0, z=0},
-		     {x=-1, y=0, z=0},
-		     {x=0, y=0, z=1},
-		     {x=0, y=0, z=-1}})
-			[wallmounted]
-end
-
 local modpath = minetest.get_modpath("defense")
 local function dofile2(file)
 	dofile(modpath .. "/" .. file)
@@ -37,12 +27,16 @@ function defense:is_dark()
 	return tod < 0.21 or tod > 0.8 or defense.debug
 end
 
+dofile2("util.lua")
+dofile2("Queue.lua")
+
+dofile2("initial_stuff.lua")
+dofile2("pathfinder.lua")
+dofile2("director.lua")
+dofile2("music.lua")
+
 dofile2("mob.lua")
 dofile2("mobs/unggoy.lua")
 dofile2("mobs/sarangay.lua")
 dofile2("mobs/paniki.lua")
 dofile2("mobs/botete.lua")
-
-dofile2("director.lua")
-dofile2("music.lua")
-dofile2("initial_stuff.lua")

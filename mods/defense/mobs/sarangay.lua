@@ -27,6 +27,7 @@ defense.mobs.register_mob("defense:sarangay", {
 		start = {a=110, b=119, rate=15},
 	},
 
+	smart_path = false,
 	mass = 12,
 	move_speed = 6,
 	jump_height = 1,

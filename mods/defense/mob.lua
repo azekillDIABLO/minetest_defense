@@ -11,6 +11,8 @@ mobs.default_prototype = {
 	stepheight = 0.6,
 	-- custom properties
 	id = 0,
+	smart_path = true,
+	mass = 1,
 	movement = "ground", -- "ground"/"air"
 	move_speed = 1,
 	jump_height = 1,
@@ -121,15 +123,26 @@ end
 function mobs.default_prototype:hunt()
 	local nearest = self:find_nearest_player()
 	if nearest.player then
-		local dir = vector.direction(nearest.position, self.object:getpos())
 		if nearest.distance <= self.attack_range then
 			self:do_attack(nearest.player)
 		end
 		if nearest.distance > self.attack_range or nearest.distance < self.attack_range/2-1 then
-			local r = math.max(0, self.attack_range - 2)
-			self.destination = vector.add(nearest.position, vector.multiply(dir, r))
+			local pos = self.object:getpos()
+			local direction = nil
+			if self.smart_path and nearest.distance < defense.pathfinder.path_max_range then
+				direction = defense.pathfinder:get_direction(self.name, pos)
+			end
+
+			if direction then
+				self.destination = vector.add(pos, vector.multiply(direction, 1.25))
+			else
+				local r = math.max(0, self.attack_range - 2)
+				local dir = vector.direction(nearest.position, self.object:getpos())
+				self.destination = vector.add(nearest.position, vector.multiply(dir, r))
+			end
 		end
 	end
+	
 end
 
 function mobs.default_prototype:do_attack(obj)
@@ -149,7 +162,11 @@ end
 
 function mobs.default_prototype:jump(direction)
 	if self:is_standing() then
-		direction = vector.normalize(direction)
+		if direction then
+			direction = vector.normalize(direction)
+		else
+			direction = {x=0,y=0,z=0}
+		end
 		local v = self.object:getvelocity()
 		v.y = math.sqrt(2 * -mobs.gravity * (self.jump_height + 0.2))
 		v.x = direction.x * self.jump_height
@@ -212,21 +229,19 @@ function mobs.default_prototype:find_nearest_player()
 	local nearest_pos = p
 	local nearest_dist = 9999
 	for _,obj in ipairs(minetest.get_connected_players()) do
-		if obj:is_player() then
-			if not nearest_player then
+		if not nearest_player then
+			nearest_player = obj
+			nearest_pos = obj:getpos()
+			nearest_pos.y = nearest_pos.y + 1
+			nearest_dist = vector.distance(nearest_pos, p)
+		else
+			local pos = obj:getpos()
+			pos.y = pos.y + 1
+			local d = vector.distance(pos, p)
+			if d < nearest_dist then
 				nearest_player = obj
-				nearest_pos = obj:getpos()
-				nearest_pos.y = nearest_pos.y + 1
-				nearest_dist = vector.distance(nearest_pos, p)
-			else
-				local pos = obj:getpos()
-				pos.y = pos.y + 1
-				local d = vector.distance(pos, p)
-				if d < nearest_dist then
-					nearest_player = obj
-					nearest_pos = pos
-					nearest_dist = d
-				end
+				nearest_pos = pos
+				nearest_dist = d
 			end
 		end
 	end
@@ -356,6 +371,18 @@ function mobs.register_mob(name, def)
 	end
 
 	prototype.move = def.move or mobs.move_method[prototype.movement]
+
+	if defense.pathfinder and prototype.smart_path then
+		defense.pathfinder:register_class(name, {
+			size = {
+				x = math.ceil(prototype.collisionbox[4] - prototype.collisionbox[1]),
+				y = math.ceil(prototype.collisionbox[5] - prototype.collisionbox[2]),
+				z = math.ceil(prototype.collisionbox[6] - prototype.collisionbox[3])
+			},
+			collisionbox = prototype.collisionbox,
+			cost_method = def.pathfinder_cost or defense.pathfinder.cost_method[prototype.movement]
+		})
+	end
 
 	minetest.register_entity(name, prototype)
 end

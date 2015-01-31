@@ -85,7 +85,7 @@ function director:on_interval()
 	end
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() and #minetest.luaentities < self.max_entities then
+		if defense:is_dark() and #minetest.luaentities < self.max_entities and not defense.debug then
 			self:spawn_monsters()
 		end
 

@@ -135,6 +135,7 @@ defense.mobs.register_mob("defense:botete", {
 		move_attack = {a=80, b=99, rate=25},
 	},
 
+	smart_path = false,
 	mass = 1,
 	movement = "air",
 	move_speed = 4,
