@@ -39,15 +39,11 @@ function mobs.default_prototype:on_activate(staticdata)
 end
 
 function mobs.default_prototype:on_step(dtime)
-	local destination_distance = 0
-	if self.destination then
-		destination_distance = vector.distance(self.object:getpos(), self.destination)
-	end
 
 	if self.pause_timer <= 0 then
 		if self.destination then
 			self:move(dtime, self.destination)
-			if destination_distance < 1 then
+			if vector.distance(self.object:getpos(), self.destination) < 0.5 then
 				self.destination = nil
 			end
 		else
@@ -61,6 +57,7 @@ function mobs.default_prototype:on_step(dtime)
 		self:set_animation("fall", {"jump", "attack", "move_attack"})
 	end
 
+	-- Die when morning comes
 	if not defense:is_dark() then
 		local damage = self.object:get_hp() * math.random()
 		if damage >= 0.5 then
@@ -68,12 +65,27 @@ function mobs.default_prototype:on_step(dtime)
 		end
 	end
 
+	-- Remove when far enough and may not reach the player at all
+	local nearest = self:find_nearest_player()
 	if self.life_timer <= 0 then
-		if destination_distance > 6 then
+		if nearest.distance > 6 then
 			self.object:remove()
 		end
 	else
 		self.life_timer = self.life_timer - dtime
+	end
+
+	-- Disable collision when far enough
+	if self.collide_with_objects then
+		if nearest.distance > 8 then
+			self.collide_with_objects = false
+			self.object:set_properties({collide_with_objects = self.collide_with_objects})
+		end
+	else
+		if nearest.distance < 3 then
+			self.collide_with_objects = true
+			self.object:set_properties({collide_with_objects = self.collide_with_objects})
+		end
 	end
 
 	self.timer = self.timer + dtime
@@ -134,7 +146,14 @@ function mobs.default_prototype:hunt()
 			end
 
 			if direction then
-				self.destination = vector.add(pos, vector.multiply(direction, 1.25))
+				local sx = self.collisionbox[4] - self.collisionbox[1]
+				local sy = self.collisionbox[5] - self.collisionbox[2]
+				local sz = self.collisionbox[6] - self.collisionbox[3]
+				local r = math.sqrt(sx*sx + sy*sy + sz*sz)/2 + 1
+				local x = pos.x + direction.x * r
+				local y = pos.y + direction.y * r
+				local z = pos.z + direction.z * r
+				self.destination = {x=x, y=y, z=z}
 			else
 				local r = math.max(0, self.attack_range - 2)
 				local dir = vector.direction(nearest.position, self.object:getpos())
@@ -261,7 +280,7 @@ function mobs.move_method:air(dtime, destination)
 		z=math.sin(r_angle)*r_radius
 	})
 
-	local speed = self.move_speed * math.max(0, math.min(1, 0.8 * dist))
+	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
 	if vector.length(v) < self.move_speed * 1.5 then
@@ -302,7 +321,7 @@ function mobs.move_method:ground(dtime, destination)
 		z=math.sin(r_angle)*r_radius
 	})
 
-	local speed = self.move_speed * math.max(0, math.min(1, 0.8 * dist))
+	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
 	if self:is_standing() and vector.length(v) < self.move_speed * 4 then
@@ -319,25 +338,32 @@ function mobs.move_method:ground(dtime, destination)
 	v2.y = v.y
 	self.object:setvelocity(v2)
 
-	-- Check for obstacle to jump
+	-- Check for jump
 	local jump = false
-	if dist > 1 then
+	if self.smart_path then
 		local p = self.object:getpos()
-		p.y = p.y + self.collisionbox[2] + 0.5
-		local sx = self.collisionbox[4] - self.collisionbox[1]
-		local sz = self.collisionbox[6] - self.collisionbox[3]
-		local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
-		local fronts = {
-			{x = dir.x * self.jump_height, y = 0, z = dir.z * self.jump_height},
-			{x = dir.x * r, y = 0, z = dir.z * r},
-			{x = dir.x + dir.z * r, y = 0, z = dir.z + dir.x * r},
-			{x = dir.x - dir.z * r, y = 0, z = dir.z - dir.x * r},
-		}
-		for _,f in ipairs(fronts) do
-			local node = minetest.get_node_or_nil(vector.add(p, f))
-			if not node or minetest.registered_nodes[node.name].walkable then
-				jump = true
-				break
+		if destination.y > p.y + 0.5 then
+			jump = true
+		end
+	else
+		if dist > 1 then
+			local p = self.object:getpos()
+			p.y = p.y + self.collisionbox[2] + 0.5
+			local sx = self.collisionbox[4] - self.collisionbox[1]
+			local sz = self.collisionbox[6] - self.collisionbox[3]
+			local r = math.sqrt(sx*sx + sz*sz)/2 + 0.5
+			local fronts = {
+				{x = dir.x * self.jump_height, y = 0, z = dir.z * self.jump_height},
+				{x = dir.x * r, y = 0, z = dir.z * r},
+				{x = dir.x + dir.z * r, y = 0, z = dir.z + dir.x * r},
+				{x = dir.x - dir.z * r, y = 0, z = dir.z - dir.x * r},
+			}
+			for _,f in ipairs(fronts) do
+				local node = minetest.get_node_or_nil(vector.add(p, f))
+				if not node or minetest.registered_nodes[node.name].walkable then
+					jump = true
+					break
+				end
 			end
 		end
 	end
@@ -380,6 +406,7 @@ function mobs.register_mob(name, def)
 				z = math.ceil(prototype.collisionbox[6] - prototype.collisionbox[3])
 			},
 			collisionbox = prototype.collisionbox,
+			jump_height = math.floor(prototype.jump_height),
 			cost_method = def.pathfinder_cost or defense.pathfinder.cost_method[prototype.movement]
 		})
 	end

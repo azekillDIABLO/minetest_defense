@@ -38,13 +38,13 @@ defense.mobs.register_mob("defense:unggoy", {
 			if math.random() < 0.1 then
 				self.destination = vector.add(
 					self.object:getpos(),
-					{x=math.random(-10,10),y=0,z=math.random(-10,10)}
+					{x=math.random(-4,4),y=0,z=math.random(-4,4)}
 				)
 			elseif math.random() < 0.1 then
 				self.wander = false
 			end
 		else
-			if math.random() < 0.05 then
+			if math.random() < 0.006 then
 				self.wander = true
 			else
 				self:hunt()
@@ -60,6 +60,11 @@ defense.mobs.register_mob("defense:unggoy", {
 		if defense.mobs.default_prototype.is_standing(self) then
 			return true
 		else
+			local vel = self.object:getvelocity()
+			if math.abs(vel.y) > 0.05 then
+				return false
+			end
+
 			local pos = self.object:getpos()
 			pos.y = pos.y - 1
 			for _,o in ipairs(minetest.get_objects_inside_radius(pos, 1)) do

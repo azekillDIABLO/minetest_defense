@@ -1,15 +1,28 @@
 defense.pathfinder = {}
 local pathfinder = defense.pathfinder
-pathfinder.path_max_range = 16
-pathfinder.fields = {}
+pathfinder.path_max_range = 32
 pathfinder.classes = {}
-
-local visit_queues = {}
 local chunk_size = 16
 
+-- State
+local fields = {}
+local visit_queues = {}
+local player_last_update = {}
+local morning_reset = false
+
+-- local cid_data = {}
+-- minetest.after(0, function()
+-- 	for name, def in pairs(minetest.registered_nodes) do
+-- 		cid_data[minetest.get_content_id(name)] = {
+-- 			name = name,
+-- 			walkable = def.walkable,
+-- 		}
+-- 	end
+-- end)
+
 function pathfinder:register_class(class, properties)
-	self.fields[class] = self.fields[class] or {}
 	self.classes[class] = properties
+	fields[class] = fields[class] or {}
 	visit_queues[class] = Queue.new()
 end
 
@@ -24,20 +37,42 @@ end
 
 -- Returns a vector
 function pathfinder:get_direction(class, position)
-	local field = self:get_field(class, position)
-	if not field then
+	local total = vector.new(0, 0, 0)
+	local count = 0
+	local time = minetest.get_gametime()
+
+	local cells = {
+		position,
+		{x=position.x + 1, y=position.y, z=position.z},
+		{x=position.x - 1, y=position.y, z=position.z},
+		{x=position.x, y=position.y + 1, z=position.z},
+		{x=position.x, y=position.y - 1, z=position.z},
+		{x=position.x, y=position.y, z=position.z + 1},
+		{x=position.x, y=position.y, z=position.z - 1},
+	}
+	for _,p in ipairs(cells) do
+		local field = self:get_field(class, p)
+		if field then
+			local last_time = player_last_update[field.player] or field.time
+			if last_time + field.distance > time then
+				local direction = ({{x=-1, y=0, z=0},
+					{x=1, y=0, z=0},
+					{x=0, y=-1, z=0},
+					{x=0, y=1, z=0},
+					{x=0, y=0, z=-1},
+					{x=0, y=0, z=1}})
+						[field.direction]
+				total = vector.add(total, direction)
+				count = count + 1
+			end
+		end
+	end
+
+	if count > 0 then
+		return vector.normalize(total)
+	else
 		return nil
 	end
-	if field.distance == 0 then
-		return {x=0, y=0, z=0}
-	end
-	return ({{x=-1, y=0, z=0},
-		{x=1, y=0, z=0},
-		{x=0, y=-1, z=0},
-		{x=0, y=1, z=0},
-		{x=0, y=0, z=-1},
-		{x=0, y=0, z=1}})
-			[field.direction]
 end
 
 -- Returns a table {time, distance}
@@ -50,7 +85,7 @@ function pathfinder:get_field(class, position)
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
 		":" .. math.floor(z/chunk_size)
-	local chunk = self.fields[class][chunk_key]
+	local chunk = fields[class][chunk_key]
 	if not chunk then
 		return nil
 	end
@@ -62,7 +97,7 @@ function pathfinder:get_field(class, position)
 	return chunk[index]
 end
 
-function pathfinder:set_field(class, position, distance, direction, time)
+function pathfinder:set_field(class, position, player, distance, direction, time)
 	local collisionbox = self.classes[class].collisionbox
 	local x = math.floor(position.x + collisionbox[1])
 	local y = math.floor(position.y + collisionbox[2])
@@ -71,24 +106,33 @@ function pathfinder:set_field(class, position, distance, direction, time)
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
 		":" .. math.floor(z/chunk_size)
-	local chunk = self.fields[class][chunk_key]
+	local chunk = fields[class][chunk_key]
 	if not chunk then
 		chunk = {}
-		self.fields[class][chunk_key] = chunk
+		fields[class][chunk_key] = chunk
 	end
 
 	local cx = x % chunk_size
 	local cy = y % chunk_size
 	local cz = z % chunk_size
 	local index = (cy * chunk_size + cz) * chunk_size + cx
-	chunk[index] = {time=time, direction=direction, distance=distance}
+	chunk[index] = {time=time, direction=direction, distance=distance, player=player}
 end
 
 function pathfinder:update(dtime)
 	if not defense:is_dark() then
-		-- reset flow fields
+		-- reset flow fields in the morning
+		if not morning_reset then
+			morning_reset = true
+			player_last_update = {}
+			for c,_ in pairs(self.classes) do
+				fields[c] = {}
+				visit_queues[c] = Queue.new()
+			end
+		end
 		return
 	end
+	morning_reset = false
 
 	local neighborhood = {
 		{x=1, y=0, z=0},
@@ -102,15 +146,14 @@ function pathfinder:update(dtime)
 	for c,class in pairs(self.classes) do
 		local vq = visit_queues[c]
 		local size = Queue.size(vq)
-		minetest.debug(size)
-		for i=1,math.min(size,1000 * dtime) do
+		for i=1,math.min(size,20) do
 			local current = Queue.pop(vq)
 			for di,n in ipairs(neighborhood) do
 				local npos = vector.add(current.position, n)
 				npos.x = math.floor(npos.x)
 				npos.y = math.floor(npos.y)
 				npos.z = math.floor(npos.z)
-				local cost = class.cost_method(npos, current.position, class.size)
+				local cost = class.cost_method(class, npos, current.position)
 				if cost then
 					local next_distance = current.distance + cost
 					local neighbor_field = self:get_field(c, npos)
@@ -119,10 +162,11 @@ function pathfinder:update(dtime)
 							and neighbor_field.direction ~= di
 						or neighbor_field.time == current.time
 							and neighbor_field.distance > next_distance then
-						self:set_field(c, npos, next_distance, di, current.time)
-						if next_distance < self.path_max_range then
+						self:set_field(c, npos, current.player, next_distance, di, current.time)
+						if next_distance < self.path_max_range and size < 100 then
 							Queue.push(vq, {
 								position = npos,
+								player = current.player,
 								distance = next_distance,
 								direction = di,
 								time = current.time,
@@ -138,23 +182,27 @@ function pathfinder:update(dtime)
 	local time = minetest.get_gametime()
 	for _,p in ipairs(minetest.get_connected_players()) do
 		local pos = p:getpos()
-		pos.y = pos.y + 1
 		for c,_ in pairs(self.classes) do
-			local field = self:get_field(c, pos)
-			if not field or field.distance > 0 then
-				self:set_field(c, pos, 0, 0, time)
-				Queue.push(visit_queues[c], {position=pos, distance=0, direction=0, time=time})
+			for y=pos.y+0.1,pos.y+2 do
+				local tp = {x=pos.x, y=y, z=pos.z}
+				local field = self:get_field(c, tp)
+				if not field or field.distance > 0 then
+					local name = p:get_player_name()
+					self:set_field(c, pos, name, 0, 4, time)
+					Queue.push(visit_queues[c], {position=tp, player=name, distance=0, direction=0, time=time})
+					player_last_update[name] = time
+				end
 			end
 		end
 	end
 end
 
 pathfinder.cost_method = {}
-function pathfinder.cost_method.air(pos, parent, size)
+function pathfinder.cost_method.air(class, pos, parent)
 	-- Check if solid
-	for y=pos.y,pos.y+size.y-1 do
-		for z=pos.z,pos.z+size.z-1 do
-			for x=pos.x,pos.x+size.x-1 do
+	for y=pos.y,pos.y+class.size.y-1 do
+		for z=pos.z,pos.z+class.size.z-1 do
+			for x=pos.x,pos.x+class.size.x-1 do
 				local node = minetest.get_node_or_nil({x=x, y=y, z=z})
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
@@ -165,33 +213,64 @@ function pathfinder.cost_method.air(pos, parent, size)
 	end
 	return 1
 end
-function pathfinder.cost_method.ground(pos, parent, size)
-	local on_ground = false
-	for z=pos.z,pos.z+size.z-1 do
-		for x=pos.x,pos.x+size.x-1 do
-			-- Check if solid
-			for y=pos.y,pos.y+size.y-1 do
+function pathfinder.cost_method.ground(class, pos, parent)
+	-- Check if in solid
+	for z=pos.z,pos.z+class.size.z-1 do
+		for x=pos.x,pos.x+class.size.x-1 do
+			for y=pos.y,pos.y+class.size.y-1 do
 				local node = minetest.get_node_or_nil({x=x, y=y, z=z})
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
 					return pathfinder.path_max_range + 1
 				end
 			end
+		end
+	end
 
-			if not on_ground then
-				-- Check if on top of solid
-				local node = minetest.get_node_or_nil({x=x, y=pos.y-1, z=z})
+	-- Check if this is a fall
+	if parent.y < pos.y then
+		return 2
+	end
+
+	-- Check if on top of solid
+	local ground_distance = 9999
+	for z=pos.z,pos.z+class.size.z-1 do
+		for x=pos.x,pos.x+class.size.x-1 do
+			for y=pos.y-1,pos.y-class.jump_height-1,-1 do
+				local node = minetest.get_node_or_nil({x=x, y=y, z=z})
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
-					on_ground = true
+					ground_distance = math.min(ground_distance, pos.y - y)
+					if ground_distance == 1 then
+						return 1
+					end
+					break
 				end
 			end
 		end
 	end
-	if not on_ground then
+
+	if ground_distance > 1 then
+		if ground_distance <= class.jump_height + 1 then
+			local ledges = {
+				{x=pos.x + class.size.x, y=pos.y - 1, z=pos.z},
+				{x=pos.x - 1, y=pos.y - 1, z=pos.z},
+				{x=pos.x, y=pos.y - 1, z=pos.z + class.size.z},
+				{x=pos.x, y=pos.y - 1, z=pos.z - 1},
+			}
+			for _,l in ipairs(ledges) do
+				local node = minetest.get_node_or_nil(l)
+				if not node then return nil end
+				if minetest.registered_nodes[node.name].walkable then
+					return 1 + (ground_distance - 1)
+				end
+			end
+		end
+
 		return pathfinder.path_max_range + 1
 	end
-	return 1 + math.ceil(math.abs(pos.y - parent.y))
+
+	return 1
 end
 
 minetest.register_globalstep(function(dtime)

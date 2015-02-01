@@ -1,7 +1,7 @@
 defense.director = {}
 local director = defense.director
 director.call_interval = 1.0
-director.intensity_decay = 0.92
+director.intensity_decay = 0.93
 director.max_entities = 50
 director.spawn_list = {
 	{
@@ -20,12 +20,12 @@ director.spawn_list = {
 		description = "Unggoy horde",
 		name = "defense:unggoy",
 		intensity_min = 0.0,
-		intensity_max = 0.0,
+		intensity_max = 0.1,
 		group_min = 21,
 		group_max = 24,
 		probability = 0.8,
 		day_start = 1,
-		spawn_time = 71.0,
+		spawn_time = 31.0,
 		spawn_location = "ground",
 	},
 	{
@@ -85,7 +85,7 @@ function director:on_interval()
 	end
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() and #minetest.luaentities < self.max_entities and not defense.debug then
+		if defense:is_dark() and #minetest.luaentities < self.max_entities then
 			self:spawn_monsters()
 		end
 
@@ -239,8 +239,8 @@ function director:update_intensity()
 	local mob_count = #minetest.luaentities
 
 	local delta =
-		  -0.16 * math.min(0.06, average_health - last_average_health)
-		+ 2.0 * math.min(0, 1 / average_health)
+		  -0.2 * (average_health - last_average_health)
+		+ 4.0 * math.max(0, 1 / average_health - 0.1)
 		+ 0.006 * (mob_count - last_mob_count)
 
 	last_average_health = average_health

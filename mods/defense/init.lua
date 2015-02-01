@@ -24,7 +24,7 @@ end
 
 function defense:is_dark()
 	local tod = minetest.get_timeofday()
-	return tod < 0.21 or tod > 0.8 or defense.debug
+	return tod < 0.2 or tod > 0.8 or defense.debug
 end
 
 dofile2("util.lua")
