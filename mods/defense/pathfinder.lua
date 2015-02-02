@@ -1,12 +1,14 @@
 defense.pathfinder = {}
 local pathfinder = defense.pathfinder
 pathfinder.path_max_range = 32
+pathfinder.path_max_range_long = 64
 pathfinder.classes = {}
 local chunk_size = 16
 
 -- State
 local fields = {}
 local visit_queues = {}
+local visit_queue_long = Queue.new()
 local player_last_update = {}
 local morning_reset = false
 
@@ -166,6 +168,7 @@ function pathfinder:update(dtime)
 		{x=0, y=0, z=-1},
 	}
 	-- Update the field
+	local total_queues_size = 0
 	for c,class in pairs(self.classes) do
 		local vq = visit_queues[c]
 		local size = Queue.size(vq)
@@ -197,12 +200,30 @@ function pathfinder:update(dtime)
 									time = current.time,
 								})
 							end
+						elseif next_distance < self.path_max_range_long then
+							Queue.push(visit_queue_long, {
+								class = c,
+								position = npos,
+								player = current.player,
+								distance = next_distance,
+								direction = di,
+								time = current.time,
+							})
 						else
 							self:delete_field(c, npos)
 						end
 					end
 				end
 			end
+		end
+		total_queues_size = total_queues_size + math.max(0, size - max_iter)
+	end
+
+	-- Update far fields
+	if total_queues_size == 0 then
+		if Queue.size(visit_queue_long) > 0 then
+			local current = Queue.pop(visit_queue_long)
+			Queue.push(visit_queues[current.class], current)
 		end
 	end
 
@@ -211,12 +232,12 @@ function pathfinder:update(dtime)
 	for _,p in ipairs(minetest.get_connected_players()) do
 		local pos = p:getpos()
 		for c,_ in pairs(self.classes) do
-			for y=pos.y+0.1,pos.y+2 do
+			for y=pos.y-0.5,pos.y+0.5 do
 				local tp = {x=pos.x, y=y, z=pos.z}
 				local field = self:get_field(c, tp)
 				if not field or field.distance > 0 then
 					local name = p:get_player_name()
-					self:set_field(c, pos, name, 0, 4, time)
+					self:set_field(c, tp, name, 0, 4, time)
 					Queue.push(visit_queues[c], {position=tp, player=name, distance=0, direction=0, time=time})
 					player_last_update[name] = time
 				end
