@@ -19,37 +19,12 @@ defense.mobs.register_mob("defense:paniki", {
 	attack_range = 1.1,
 	attack_interval = 1.2,
 
-	rank = 0,
-	leader = nil,
 	last_hp = 3,
 	flee_timer = 0,
 
-	on_activate = function(self, staticdata)
-		defense.mobs.default_prototype.on_activate(self, staticdata)
-		self.rank = math.random()
-		local pos = self.object:getpos()
-		local radius = 2
-		minetest.after(1, function()
-			local greatest_paniki = self
-			local greatest_rank = self.rank
-			for _,o in pairs(minetest.get_objects_inside_radius(pos, radius)) do
-				if self.object ~= o then
-					local e = o:get_luaentity()
-					if e and e.name == self.name then
-						if greatest_rank < e.rank then
-							greatest_paniki = e
-							greatest_rank = e.rank
-						end
-					end
-				end
-			end
-			self.leader = greatest_paniki
-		end)
-	end,
-
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
-		if self.flee_timer > 0  or (self.leader and self.leader.flee_timer > 0) then
+		if self.flee_timer > 0 then
 			local nearest = self:find_nearest_player()
 			local pos = self.object:getpos()
 			local delta = vector.subtract(pos, nearest.player:getpos())

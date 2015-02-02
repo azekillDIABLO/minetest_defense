@@ -37,6 +37,15 @@ end
 
 -- Returns a vector
 function pathfinder:get_direction(class, position)
+	local directions = {
+		{x=0, y=-1, z=0},
+		{x=0, y=1, z=0},
+		{x=0, y=0, z=-1},
+		{x=1, y=0, z=0},
+		{x=-1, y=0, z=0},
+		{x=0, y=0, z=1},
+	}
+
 	local total = vector.new(0, 0, 0)
 	local count = 0
 	local time = minetest.get_gametime()
@@ -54,21 +63,14 @@ function pathfinder:get_direction(class, position)
 		local field = self:get_field(class, p)
 		if field then
 			local last_time = player_last_update[field.player] or field.time
-			if last_time + field.distance > time then
-				local direction = ({{x=-1, y=0, z=0},
-					{x=1, y=0, z=0},
-					{x=0, y=-1, z=0},
-					{x=0, y=1, z=0},
-					{x=0, y=0, z=-1},
-					{x=0, y=0, z=1}})
-						[field.direction]
+			if last_time + field.distance * 4 > time then
+				local direction = directions[field.direction]
 				total = vector.add(total, direction)
-				count = count + 1
 			end
 		end
 	end
 
-	if count > 0 then
+	if total.x ~= 0 or total.y ~= 0 or total.z ~= 0 then
 		return vector.normalize(total)
 	else
 		return nil
@@ -78,9 +80,9 @@ end
 -- Returns a table {time, distance}
 function pathfinder:get_field(class, position)
 	local collisionbox = self.classes[class].collisionbox
-	local x = math.floor(position.x + collisionbox[1])
-	local y = math.floor(position.y + collisionbox[2])
-	local z = math.floor(position.z + collisionbox[3])
+	local x = math.floor(position.x + collisionbox[1] + 0.01)
+	local y = math.floor(position.y + collisionbox[2] + 0.01)
+	local z = math.floor(position.z + collisionbox[3] + 0.01)
 
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
@@ -99,9 +101,9 @@ end
 
 function pathfinder:set_field(class, position, player, distance, direction, time)
 	local collisionbox = self.classes[class].collisionbox
-	local x = math.floor(position.x + collisionbox[1])
-	local y = math.floor(position.y + collisionbox[2])
-	local z = math.floor(position.z + collisionbox[3])
+	local x = math.floor(position.x + collisionbox[1] + 0.01)
+	local y = math.floor(position.y + collisionbox[2] + 0.01)
+	local z = math.floor(position.z + collisionbox[3] + 0.01)
 
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
@@ -117,6 +119,27 @@ function pathfinder:set_field(class, position, player, distance, direction, time
 	local cz = z % chunk_size
 	local index = (cy * chunk_size + cz) * chunk_size + cx
 	chunk[index] = {time=time, direction=direction, distance=distance, player=player}
+end
+
+function pathfinder:delete_field(class, position)
+	local collisionbox = self.classes[class].collisionbox
+	local x = math.floor(position.x + collisionbox[1] + 0.01)
+	local y = math.floor(position.y + collisionbox[2] + 0.01)
+	local z = math.floor(position.z + collisionbox[3] + 0.01)
+
+	local chunk_key = math.floor(x/chunk_size) ..
+		":" .. math.floor(y/chunk_size) ..
+		":" .. math.floor(z/chunk_size)
+	local chunk = fields[class][chunk_key]
+	if not chunk then
+		return
+	end
+
+	local cx = x % chunk_size
+	local cy = y % chunk_size
+	local cz = z % chunk_size
+	local index = (cy * chunk_size + cz) * chunk_size + cx
+	chunk[index] = nil
 end
 
 function pathfinder:update(dtime)
@@ -135,18 +158,19 @@ function pathfinder:update(dtime)
 	morning_reset = false
 
 	local neighborhood = {
-		{x=1, y=0, z=0},
-		{x=-1, y=0, z=0},
 		{x=0, y=1, z=0},
 		{x=0, y=-1, z=0},
 		{x=0, y=0, z=1},
+		{x=-1, y=0, z=0},
+		{x=1, y=0, z=0},
 		{x=0, y=0, z=-1},
 	}
 	-- Update the field
 	for c,class in pairs(self.classes) do
 		local vq = visit_queues[c]
 		local size = Queue.size(vq)
-		for i=1,math.min(size,20) do
+		local max_iter = 100 - math.floor(defense.director.intensity * 90)
+		for i=1,math.min(size,max_iter) do
 			local current = Queue.pop(vq)
 			for di,n in ipairs(neighborhood) do
 				local npos = vector.add(current.position, n)
@@ -162,15 +186,19 @@ function pathfinder:update(dtime)
 							and neighbor_field.direction ~= di
 						or neighbor_field.time == current.time
 							and neighbor_field.distance > next_distance then
-						self:set_field(c, npos, current.player, next_distance, di, current.time)
-						if next_distance < self.path_max_range and size < 100 then
-							Queue.push(vq, {
-								position = npos,
-								player = current.player,
-								distance = next_distance,
-								direction = di,
-								time = current.time,
-							})
+						if next_distance < self.path_max_range then
+							if size < 800 then
+								self:set_field(c, npos, current.player, next_distance, di, current.time)
+								Queue.push(vq, {
+									position = npos,
+									player = current.player,
+									distance = next_distance,
+									direction = di,
+									time = current.time,
+								})
+							end
+						else
+							self:delete_field(c, npos)
 						end
 					end
 				end
@@ -227,11 +255,6 @@ function pathfinder.cost_method.ground(class, pos, parent)
 		end
 	end
 
-	-- Check if this is a fall
-	if parent.y < pos.y then
-		return 2
-	end
-
 	-- Check if on top of solid
 	local ground_distance = 9999
 	for z=pos.z,pos.z+class.size.z-1 do
@@ -262,9 +285,14 @@ function pathfinder.cost_method.ground(class, pos, parent)
 				local node = minetest.get_node_or_nil(l)
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
-					return 1 + (ground_distance - 1)
+					return ground_distance
 				end
 			end
+		end
+
+		-- Check if this is a fall
+		if parent.y < pos.y then
+			return 2
 		end
 
 		return pathfinder.path_max_range + 1

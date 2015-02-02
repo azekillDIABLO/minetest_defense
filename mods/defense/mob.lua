@@ -77,12 +77,12 @@ function mobs.default_prototype:on_step(dtime)
 
 	-- Disable collision when far enough
 	if self.collide_with_objects then
-		if nearest.distance > 8 then
+		if nearest.distance > 6 then
 			self.collide_with_objects = false
 			self.object:set_properties({collide_with_objects = self.collide_with_objects})
 		end
 	else
-		if nearest.distance < 3 then
+		if nearest.distance < 1.5 then
 			self.collide_with_objects = true
 			self.object:set_properties({collide_with_objects = self.collide_with_objects})
 		end
@@ -146,14 +146,7 @@ function mobs.default_prototype:hunt()
 			end
 
 			if direction then
-				local sx = self.collisionbox[4] - self.collisionbox[1]
-				local sy = self.collisionbox[5] - self.collisionbox[2]
-				local sz = self.collisionbox[6] - self.collisionbox[3]
-				local r = math.sqrt(sx*sx + sy*sy + sz*sz)/2 + 1
-				local x = pos.x + direction.x * r
-				local y = pos.y + direction.y * r
-				local z = pos.z + direction.z * r
-				self.destination = {x=x, y=y, z=z}
+				self.destination = vector.add(pos, vector.multiply(direction, 1.25))
 			else
 				local r = math.max(0, self.attack_range - 2)
 				local dir = vector.direction(nearest.position, self.object:getpos())
@@ -339,11 +332,16 @@ function mobs.move_method:ground(dtime, destination)
 	self.object:setvelocity(v2)
 
 	-- Check for jump
-	local jump = false
+	local jump = nil
 	if self.smart_path then
 		local p = self.object:getpos()
-		if destination.y > p.y + 0.5 then
-			jump = true
+		if destination.y > p.y + 1 then
+			for y=p.y,p.y+self.jump_height do
+				jump = defense.pathfinder:get_direction(self.name, {x=p.x, y=y, z=p.z})
+				if jump and (jump.x ~= 0 or jump.z ~= 0) then
+					break
+				end
+			end
 		end
 	else
 		if dist > 1 then
@@ -361,7 +359,7 @@ function mobs.move_method:ground(dtime, destination)
 			for _,f in ipairs(fronts) do
 				local node = minetest.get_node_or_nil(vector.add(p, f))
 				if not node or minetest.registered_nodes[node.name].walkable then
-					jump = true
+					jump = vector.direction(self.object:getpos(), destination)
 					break
 				end
 			end
@@ -369,7 +367,7 @@ function mobs.move_method:ground(dtime, destination)
 	end
 
 	if jump then
-		self:jump(vector.direction(self.object:getpos(), destination))
+		self:jump(jump)
 	elseif self:is_standing() then
 		if speed > self.move_speed * 0.06 then
 			local yaw = self.object:getyaw()

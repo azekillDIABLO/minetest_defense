@@ -24,7 +24,7 @@ function music:update()
 	last_intensity = intensity
 	intensity = intensity + math.max(0, intensity - last_intensity) * 3
 
-	local il = {0.1, 0.45, 0.7, 0.85}
+	local il = {0.05, 0.35, 0.6, 0.8}
 	local last_level = current_level
 	if intensity <= il[1] then
 		if current_level > 0 then
@@ -68,7 +68,7 @@ function music:update()
 				loop = true,
 			})
 		end
-		if current_level > 1 or last_level > 1 then
+		if last_level > 0 then
 			minetest.sound_play("defense_music_transit", {
 				gain = 0.2 + last_level * 0.1
 			})

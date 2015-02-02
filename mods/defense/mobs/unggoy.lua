@@ -61,7 +61,7 @@ defense.mobs.register_mob("defense:unggoy", {
 			return true
 		else
 			local vel = self.object:getvelocity()
-			if math.abs(vel.y) > 0.05 then
+			if math.abs(vel.y) > 0.2 then
 				return false
 			end
 

@@ -46,13 +46,13 @@ defense.mobs.register_mob("defense:sarangay", {
 
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
+		local pos = self.object:getpos()
 		if self.charging then
 			if self.charge_power > 0.5 then
 				self:hunt()
 			end
 
 			-- Break obstacles
-			local pos = self.object:getpos()
 			pos.y = pos.y + 1.5
 			local v = self.object:getvelocity()
 			v.y = 0
@@ -69,13 +69,13 @@ defense.mobs.register_mob("defense:sarangay", {
 		else
 			local nearest = self:find_nearest_player()
 			if nearest then
-				if nearest.distance > 4 and math.random() < 0.1 then
+				if nearest.distance > 4 and math.abs(nearest.position.y - pos.y) < 4 and math.random() < 0.1 then
 					self:set_charging_state(true)
 					self.destination = nil
 				elseif nearest.distance < 4 then
 					self:hunt()
 				else
-					local dir = vector.direction(nearest.position, self.object:getpos())
+					local dir = vector.direction(nearest.position, pos)
 					self.destination = vector.add(nearest.position, vector.multiply(dir, 12))
 				end
 			end
