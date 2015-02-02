@@ -1,14 +1,14 @@
 defense.pathfinder = {}
 local pathfinder = defense.pathfinder
 pathfinder.path_max_range = 32
-pathfinder.path_max_range_long = 64
+pathfinder.path_max_range_far = 64
 pathfinder.classes = {}
 local chunk_size = 16
 
 -- State
 local fields = {}
 local visit_queues = {}
-local visit_queue_long = Queue.new()
+local visit_queue_far = Queue.new()
 local player_last_update = {}
 local morning_reset = false
 
@@ -167,12 +167,13 @@ function pathfinder:update(dtime)
 		{x=1, y=0, z=0},
 		{x=0, y=0, z=-1},
 	}
+
 	-- Update the field
+	local max_iter = 100 - math.floor(defense.director.intensity * 90)
 	local total_queues_size = 0
 	for c,class in pairs(self.classes) do
 		local vq = visit_queues[c]
 		local size = Queue.size(vq)
-		local max_iter = 100 - math.floor(defense.director.intensity * 90)
 		for i=1,math.min(size,max_iter) do
 			local current = Queue.pop(vq)
 			for di,n in ipairs(neighborhood) do
@@ -181,7 +182,7 @@ function pathfinder:update(dtime)
 				npos.y = math.floor(npos.y)
 				npos.z = math.floor(npos.z)
 				local cost = class.cost_method(class, npos, current.position)
-				if cost then
+				if cost and cost < self.path_max_range_far then
 					local next_distance = current.distance + cost
 					local neighbor_field = self:get_field(c, npos)
 					if not neighbor_field
@@ -189,9 +190,9 @@ function pathfinder:update(dtime)
 							and neighbor_field.direction ~= di
 						or neighbor_field.time == current.time
 							and neighbor_field.distance > next_distance then
-						if next_distance < self.path_max_range then
+						self:set_field(c, npos, current.player, next_distance, di, current.time)
+						if next_distance < self.path_max_range or current.far and next_distance < self.path_max_range_far then
 							if size < 800 then
-								self:set_field(c, npos, current.player, next_distance, di, current.time)
 								Queue.push(vq, {
 									position = npos,
 									player = current.player,
@@ -200,8 +201,9 @@ function pathfinder:update(dtime)
 									time = current.time,
 								})
 							end
-						elseif next_distance < self.path_max_range_long then
-							Queue.push(visit_queue_long, {
+						elseif next_distance < self.path_max_range_far then
+							Queue.push(visit_queue_far, {
+								far = true,
 								class = c,
 								position = npos,
 								player = current.player,
@@ -221,8 +223,9 @@ function pathfinder:update(dtime)
 
 	-- Update far fields
 	if total_queues_size == 0 then
-		if Queue.size(visit_queue_long) > 0 then
-			local current = Queue.pop(visit_queue_long)
+		local size = Queue.size(visit_queue_far)
+		for i=1,math.min(size,max_iter/2) do
+			local current = Queue.pop(visit_queue_far)
 			Queue.push(visit_queues[current.class], current)
 		end
 	end
@@ -255,7 +258,7 @@ function pathfinder.cost_method.air(class, pos, parent)
 				local node = minetest.get_node_or_nil({x=x, y=y, z=z})
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
-					return pathfinder.path_max_range + 1
+					return math.huge
 				end
 			end
 		end
@@ -270,7 +273,7 @@ function pathfinder.cost_method.ground(class, pos, parent)
 				local node = minetest.get_node_or_nil({x=x, y=y, z=z})
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
-					return pathfinder.path_max_range + 1
+					return math.huge
 				end
 			end
 		end
@@ -316,7 +319,7 @@ function pathfinder.cost_method.ground(class, pos, parent)
 			return 2
 		end
 
-		return pathfinder.path_max_range + 1
+		return math.huge
 	end
 
 	return 1

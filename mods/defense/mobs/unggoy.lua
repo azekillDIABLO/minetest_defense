@@ -50,9 +50,6 @@ defense.mobs.register_mob("defense:unggoy", {
 				self:hunt()
 			end
 		end
-		if math.random() < 0.05 then
-			self:jump()
-		end
 	end,
 
 	is_standing = function(self)

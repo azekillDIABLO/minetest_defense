@@ -81,11 +81,11 @@ end
 function director:on_interval()
 	self:update_intensity()
 	if defense.debug then
-		minetest.chat_send_all("Intensity: " .. self.intensity)
+		-- minetest.chat_send_all("Intensity: " .. self.intensity)
 	end
 
 	if self.cooldown_timer <= 0 then
-		if defense:is_dark() and #minetest.luaentities < self.max_entities then
+		if defense:is_dark() and #minetest.luaentities < self.max_entities and not defense.debug then
 			self:spawn_monsters()
 		end
 
