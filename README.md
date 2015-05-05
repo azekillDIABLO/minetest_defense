@@ -15,4 +15,4 @@ Minetest Defense is based on minetest_game 0.4.11, and should be compatible with
 License
 -------
 Most of the default minetest_game files are untouched. License of these files is in LICENSE.txt.
-License of the defense mod, the regeneration mod, is in mods/<modname>/README.txt
+License of the defense mod, the regeneration mod, is in `mods/<modname>/README.txt`
