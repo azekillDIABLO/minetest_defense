@@ -7,7 +7,7 @@ mobs.default_prototype = {
 	collide_with_objects = true,
 	makes_footstep_sound = true,
 	visual = "mesh",
-	automatic_face_movement_dir = false,
+	automatic_face_movement_dir = true,
 	stepheight = 0.6,
 	-- custom properties
 	id = 0,
@@ -28,17 +28,23 @@ mobs.default_prototype = {
 	life_timer = 75,
 	pause_timer = 0,
 	timer = 0,
+
+	-- cache
+	cache_is_standing = nil,
+	cache_find_nearest_player = nil,
 }
 
 function mobs.default_prototype:on_activate(staticdata)
 	self.object:set_armor_groups({fleshy = 100 - self.armor})
-	if self.movement == "ground" then
+	if self.movement ~= "air" then
 		self.object:setacceleration({x=0, y=mobs.gravity, z=0})
 	end
 	self.id = math.random(0, 100000)
 end
 
 function mobs.default_prototype:on_step(dtime)
+	self.cache_is_standing = nil
+	self.cache_find_nearest_player = nil
 
 	if self.pause_timer <= 0 then
 		if self.destination then
@@ -55,6 +61,13 @@ function mobs.default_prototype:on_step(dtime)
 
 	if self.movement ~= "air" and not self:is_standing() then
 		self:set_animation("fall", {"jump", "attack", "move_attack"})
+	end
+	if self.movement == "crawl" then
+		if self:is_standing() then
+			self.object:setacceleration({x=0, y=0, z=0})
+		else
+			self.object:setacceleration({x=0, y=mobs.gravity, z=0})
+		end
 	end
 
 	-- Die when morning comes
@@ -146,7 +159,8 @@ function mobs.default_prototype:hunt()
 			end
 
 			if direction then
-				self.destination = vector.add(pos, vector.multiply(direction, 1.25))
+				minetest.chat_send_all("dir:" .. minetest.pos_to_string(direction))
+				self.destination = vector.add(pos, vector.multiply(direction, 1.2))
 			else
 				local r = math.max(0, self.attack_range - 2)
 				local dir = vector.direction(nearest.position, self.object:getpos())
@@ -154,7 +168,6 @@ function mobs.default_prototype:hunt()
 			end
 		end
 	end
-	
 end
 
 function mobs.default_prototype:do_attack(obj)
@@ -167,7 +180,6 @@ function mobs.default_prototype:do_attack(obj)
 		else
 			self:set_animation("attack")
 		end
-		self.object:setyaw(math.atan2(dir.z, dir.x))
 	end
 	self.life_timer = math.min(300, self.life_timer + 60)
 end
@@ -175,6 +187,7 @@ end
 function mobs.default_prototype:jump(direction)
 	if self:is_standing() then
 		if direction then
+			direction.y = 0
 			direction = vector.normalize(direction)
 		else
 			direction = {x=0,y=0,z=0}
@@ -184,7 +197,6 @@ function mobs.default_prototype:jump(direction)
 		v.x = direction.x * self.jump_height
 		v.z = direction.z * self.jump_height
 		self.object:setvelocity(vector.add(self.object:getvelocity(), v))
-		self.object:setyaw(math.atan2(direction.z, direction.x))
 		self:set_animation("jump")
 	end
 end
@@ -195,9 +207,26 @@ function mobs.default_prototype:die()
 end
 
 function mobs.default_prototype:is_standing()
+	if self.cache_is_standing ~= nil then
+		return self.cache_is_standing
+	end
+
 	if self.movement == "air" then
+		self.cache_is_standing = false
 		return false
 	end
+
+	if self.movement == "crawl" then
+		local ret = self:calculate_wall_normal() ~= nil
+		self.cache_is_standing = ret
+		return ret
+	end
+
+	if self.object:getvelocity().y ~= 0 then
+		self.cache_is_standing = false
+		return false
+	end
+
 	local p = self.object:getpos()
 	p.y = p.y + self.collisionbox[2] - 0.5
 	local corners = {
@@ -208,10 +237,13 @@ function mobs.default_prototype:is_standing()
 	}
 	for _,c in ipairs(corners) do
 		local node = minetest.get_node_or_nil(c)
-		if not node or minetest.registered_nodes[node.name].walkable and self.object:getvelocity().y == 0 then
+		if not node or minetest.registered_nodes[node.name].walkable then
+			self.cache_is_standing = true
 			return true
 		end
 	end
+
+	self.cache_is_standing = false
 	return false
 end
 
@@ -236,6 +268,10 @@ function mobs.default_prototype:set_animation(name, inhibit)
 end
 
 function mobs.default_prototype:find_nearest_player()
+	if self.cache_find_nearest_player ~= nil then
+		return self.cache_find_nearest_player
+	end
+
 	local p = self.object:getpos()
 	local nearest_player = nil
 	local nearest_pos = p
@@ -257,7 +293,41 @@ function mobs.default_prototype:find_nearest_player()
 			end
 		end
 	end
-	return {player=nearest_player, position=nearest_pos, distance=nearest_dist}
+
+	local ret = {player=nearest_player, position=nearest_pos, distance=nearest_dist}
+	self.cache_find_nearest_player = ret
+	return ret
+end
+
+function mobs.default_prototype:calculate_wall_normal()
+	local p = self.object:getpos()
+	local normals = {1,0,-1}
+	local xs = {self.collisionbox[1]-0.5,0,self.collisionbox[4]+0.5}
+	local ys = {self.collisionbox[2]-0.5,0,self.collisionbox[5]+0.5}
+	local zs = {self.collisionbox[3]-0.5,0,self.collisionbox[6]+0.5}
+
+	local normal = vector.new()
+	local count = 0
+	for xi=1,3 do
+		for yi=1,3 do
+			for zi=1,3 do
+				if xi ~= 2 and yi ~= 2 and zi ~= 2 then
+					local sp = vector.add(p, {x=xs[xi], y=ys[yi], z=zs[zi]})
+					local node = minetest.get_node_or_nil(sp)
+					if node and minetest.registered_nodes[node.name].walkable then
+						normal = vector.add(normal, {x=normals[xi], y=normals[yi], z=normals[zi]})
+						count = count + 1
+					end
+				end
+			end
+		end
+	end
+
+	if count > 0 then
+		return vector.normalize(normal)
+	else
+		return nil
+	end
 end
 
 mobs.move_method = {}
@@ -279,7 +349,7 @@ function mobs.move_method:air(dtime, destination)
 	if vector.length(v) < self.move_speed * 1.5 then
 		t = math.pow(0.1, dtime)
 	else
-		t = math.pow(0.8, dtime)
+		t = math.pow(0.4, dtime)
 		speed = speed * 0.9
 	end
 	self.object:setvelocity(vector.add(
@@ -288,14 +358,6 @@ function mobs.move_method:air(dtime, destination)
 	))
 	
 	if speed > self.move_speed * 0.04 then
-		local yaw = self.object:getyaw()
-		local yaw_delta = math.atan2(delta.z, delta.x) - yaw
-		if yaw_delta < -math.pi then
-			yaw_delta = yaw_delta + math.pi * 2
-		elseif yaw_delta > math.pi then
-			yaw_delta = yaw_delta - math.pi * 2
-		end
-		self.object:setyaw(yaw + yaw_delta * (1-t))
 		self:set_animation("move", {"attack", "move_attack"})
 	else
 		self:set_animation("idle", {"attack", "move_attack"})
@@ -320,7 +382,7 @@ function mobs.move_method:ground(dtime, destination)
 	if self:is_standing() and vector.length(v) < self.move_speed * 4 then
 		t = math.pow(0.001, dtime)
 	else
-		t = math.pow(0.7, dtime)
+		t = math.pow(0.4, dtime)
 		speed = speed * 0.9
 	end
 	local dir = vector.normalize(delta)
@@ -335,10 +397,10 @@ function mobs.move_method:ground(dtime, destination)
 	local jump = nil
 	if self.smart_path then
 		local p = self.object:getpos()
-		if destination.y > p.y + 1 then
+		if destination.y > p.y + 0.55 then
 			for y=p.y,p.y+self.jump_height do
 				jump = defense.pathfinder:get_direction(self.name, {x=p.x, y=y, z=p.z})
-				if jump and (jump.x ~= 0 or jump.z ~= 0) then
+				if not jump or (jump.x ~= 0 or jump.z ~= 0) then
 					break
 				end
 			end
@@ -370,14 +432,40 @@ function mobs.move_method:ground(dtime, destination)
 		self:jump(jump)
 	elseif self:is_standing() then
 		if speed > self.move_speed * 0.06 then
-			local yaw = self.object:getyaw()
-			local yaw_delta = math.atan2(dir.z, dir.x) - yaw
-			if yaw_delta < -math.pi then
-				yaw_delta = yaw_delta + math.pi * 2
-			elseif yaw_delta > math.pi then
-				yaw_delta = yaw_delta - math.pi * 2
-			end
-			self.object:setyaw(yaw + yaw_delta * (1-t))
+			self:set_animation("move", {"move_attack"})
+		else
+			self:set_animation("idle", {"attack", "move_attack"})
+		end
+	end
+end
+function mobs.move_method:crawl(dtime, destination)
+	local delta = vector.subtract(destination, self.object:getpos())
+	local dist = vector.length(delta)
+
+	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
+	local t
+	local v = self.object:getvelocity()
+	if self:is_standing() and vector.length(v) < self.move_speed * 4 then
+		t = math.pow(0.001, dtime)
+	else
+		t = math.pow(0.4, dtime)
+		speed = speed * 0.9
+	end
+
+	local wall = self:calculate_wall_normal()
+	if wall and dist > 0 then
+		local dot = math.abs(wall.x * delta.x + wall.y * delta.y + wall.z * delta.z)
+		delta = vector.add(delta, vector.multiply(wall, -dot))
+	end
+	local dir = vector.normalize(delta)
+	local v2 = vector.add(
+		vector.multiply(v, t),
+		vector.multiply(dir, speed * (1-t))
+	)
+	self.object:setvelocity(v2)
+	
+	if self:is_standing() then
+		if speed > self.move_speed * 0.06 then
 			self:set_animation("move", {"move_attack"})
 		else
 			self:set_animation("idle", {"attack", "move_attack"})

@@ -29,6 +29,18 @@ director.spawn_list = {
 		spawn_location = "ground",
 	},
 	{
+		description = "Aranay group",
+		name = "defense:aranay",
+		intensity_min = 0.0,
+		intensity_max = 0.5,
+		group_min = 1,
+		group_max = 2,
+		probability = 0.3,
+		day_start = 0,
+		spawn_time = 18.0,
+		spawn_location = "ground",
+	},
+	{
 		description = "Paniki group",
 		name = "defense:paniki",
 		intensity_min = 0.0,
@@ -274,9 +286,11 @@ function director:load()
 		if data then
 			self.intensity = data.intensity
 			self.cooldown_timer = data.cooldown_timer
-			spawn_timers = data.spawn_timers
 			last_average_health = data.last_average_health
 			last_mob_count = data.last_mob_count
+			for k,v in pairs(data.spawn_timers) do
+				spawn_timers[k] = v
+			end
 		end
 		assert(file:close())
 	end

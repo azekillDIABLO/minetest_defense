@@ -37,6 +37,7 @@ dofile2("music.lua")
 
 dofile2("mob.lua")
 dofile2("mobs/unggoy.lua")
+dofile2("mobs/aranay.lua")
 dofile2("mobs/sarangay.lua")
 dofile2("mobs/paniki.lua")
 dofile2("mobs/botete.lua")

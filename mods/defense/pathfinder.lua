@@ -29,17 +29,18 @@ function pathfinder:register_class(class, properties)
 end
 
 -- Returns a number
--- function pathfinder:get_distance(class, position)
--- 	local field = self:get_field(class, position)
--- 	if not field then
--- 		return nil
--- 	end
--- 	return field.distance
--- end
+function pathfinder:get_distance(class, position)
+	local field = self:get_field(class, position)
+	if not field then
+		return nil
+	end
+	return field.distance
+end
 
 -- Returns a vector
 function pathfinder:get_direction(class, position)
 	local directions = {
+	[0]={x=0, y=0, z=0},
 		{x=0, y=-1, z=0},
 		{x=0, y=1, z=0},
 		{x=0, y=0, z=-1},
@@ -50,24 +51,25 @@ function pathfinder:get_direction(class, position)
 
 	local total = vector.new(0, 0, 0)
 	local count = 0
-	local time = minetest.get_gametime()
 
+	local ipos = {x=math.floor(position.x), y=math.floor(position.y), z=math.floor(position.z)}
 	local cells = {
-		position,
-		{x=position.x + 1, y=position.y, z=position.z},
-		{x=position.x - 1, y=position.y, z=position.z},
-		{x=position.x, y=position.y + 1, z=position.z},
-		{x=position.x, y=position.y - 1, z=position.z},
-		{x=position.x, y=position.y, z=position.z + 1},
-		{x=position.x, y=position.y, z=position.z - 1},
+		ipos,
+		{x=ipos.x + 1, y=ipos.y, z=ipos.z},
+		{x=ipos.x - 1, y=ipos.y, z=ipos.z},
+		{x=ipos.x, y=ipos.y + 1, z=ipos.z},
+		{x=ipos.x, y=ipos.y - 1, z=ipos.z},
+		{x=ipos.x, y=ipos.y, z=ipos.z + 1},
+		{x=ipos.x, y=ipos.y, z=ipos.z - 1},
 	}
 	for _,p in ipairs(cells) do
 		local field = self:get_field(class, p)
 		if field then
 			local last_time = player_last_update[field.player] or field.time
-			if last_time + field.distance * 4 > time then
+			if field.time + field.distance * 4 > last_time then
 				local direction = directions[field.direction]
-				total = vector.add(total, direction)
+				local weight = 1/(1 + field.distance)
+				total = vector.add(total, vector.multiply(direction, weight))
 			end
 		end
 	end
@@ -80,11 +82,16 @@ function pathfinder:get_direction(class, position)
 end
 
 -- Returns a table {time, distance}
-function pathfinder:get_field(class, position)
+function pathfinder:get_field(class, position, no_position_adjust)
 	local collisionbox = self.classes[class].collisionbox
-	local x = math.floor(position.x + collisionbox[1] + 0.01)
-	local y = math.floor(position.y + collisionbox[2] + 0.01)
-	local z = math.floor(position.z + collisionbox[3] + 0.01)
+	if not no_position_adjust then
+		position.x = position.x + collisionbox[1] + 0.01
+		position.y = position.y + collisionbox[2] + 0.01
+		position.z = position.z + collisionbox[3] + 0.01
+	end
+	local x = math.floor(position.x)
+	local y = math.floor(position.y)
+	local z = math.floor(position.z)
 
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
@@ -101,11 +108,16 @@ function pathfinder:get_field(class, position)
 	return chunk[index]
 end
 
-function pathfinder:set_field(class, position, player, distance, direction, time)
+function pathfinder:set_field(class, position, player, distance, direction, time, no_position_adjust)
 	local collisionbox = self.classes[class].collisionbox
-	local x = math.floor(position.x + collisionbox[1] + 0.01)
-	local y = math.floor(position.y + collisionbox[2] + 0.01)
-	local z = math.floor(position.z + collisionbox[3] + 0.01)
+	if not no_position_adjust then
+		position.x = position.x + collisionbox[1] + 0.01
+		position.y = position.y + collisionbox[2] + 0.01
+		position.z = position.z + collisionbox[3] + 0.01
+	end
+	local x = math.floor(position.x)
+	local y = math.floor(position.y)
+	local z = math.floor(position.z)
 
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
@@ -125,9 +137,9 @@ end
 
 function pathfinder:delete_field(class, position)
 	local collisionbox = self.classes[class].collisionbox
-	local x = math.floor(position.x + collisionbox[1] + 0.01)
-	local y = math.floor(position.y + collisionbox[2] + 0.01)
-	local z = math.floor(position.z + collisionbox[3] + 0.01)
+	local x = math.floor(position.x)
+	local y = math.floor(position.y)
+	local z = math.floor(position.z)
 
 	local chunk_key = math.floor(x/chunk_size) ..
 		":" .. math.floor(y/chunk_size) ..
@@ -178,19 +190,21 @@ function pathfinder:update(dtime)
 			local current = Queue.pop(vq)
 			for di,n in ipairs(neighborhood) do
 				local npos = vector.add(current.position, n)
-				npos.x = math.floor(npos.x)
-				npos.y = math.floor(npos.y)
-				npos.z = math.floor(npos.z)
+				npos.x = math.floor(npos.x + 0.5)
+				npos.y = math.floor(npos.y + 0.5)
+				npos.z = math.floor(npos.z + 0.5)
 				local cost = class.cost_method(class, npos, current.position)
 				if cost and cost < self.path_max_range_far then
 					local next_distance = current.distance + cost
-					local neighbor_field = self:get_field(c, npos)
-					if not neighbor_field
-						or neighbor_field.time < current.time
-							and neighbor_field.direction ~= di
-						or neighbor_field.time == current.time
-							and neighbor_field.distance > next_distance then
-						self:set_field(c, npos, current.player, next_distance, di, current.time)
+					local neighbor_field = self:get_field(c, npos, true)
+					if not neighbor_field or
+						neighbor_field.time < current.time and
+							neighbor_field.direction ~= di or
+						neighbor_field.time == current.time and
+							(neighbor_field.distance > next_distance or
+								neighbor_field.distance == next_distance and
+									math.random() < 0.5) then
+						self:set_field(c, npos, current.player, next_distance, di, current.time, true)
 						if next_distance < self.path_max_range or current.far and next_distance < self.path_max_range_far then
 							if size < 800 then
 								Queue.push(vq, {
@@ -235,12 +249,12 @@ function pathfinder:update(dtime)
 	for _,p in ipairs(minetest.get_connected_players()) do
 		local pos = p:getpos()
 		for c,_ in pairs(self.classes) do
-			for y=pos.y-0.5,pos.y+0.5 do
+			for y=math.floor(pos.y),math.ceil(pos.y) do
 				local tp = {x=pos.x, y=y, z=pos.z}
 				local field = self:get_field(c, tp)
 				if not field or field.distance > 0 then
 					local name = p:get_player_name()
-					self:set_field(c, tp, name, 0, 4, time)
+					self:set_field(c, tp, name, 0, 0, time)
 					Queue.push(visit_queues[c], {position=tp, player=name, distance=0, direction=0, time=time})
 					player_last_update[name] = time
 				end
@@ -251,7 +265,7 @@ end
 
 pathfinder.cost_method = {}
 function pathfinder.cost_method.air(class, pos, parent)
-	-- Check if solid
+	-- Check if in solid
 	for y=pos.y,pos.y+class.size.y-1 do
 		for z=pos.z,pos.z+class.size.z-1 do
 			for x=pos.x,pos.x+class.size.x-1 do
@@ -309,7 +323,7 @@ function pathfinder.cost_method.ground(class, pos, parent)
 				local node = minetest.get_node_or_nil(l)
 				if not node then return nil end
 				if minetest.registered_nodes[node.name].walkable then
-					return ground_distance
+					return 1 + ground_distance
 				end
 			end
 		end
@@ -323,6 +337,69 @@ function pathfinder.cost_method.ground(class, pos, parent)
 	end
 
 	return 1
+end
+function pathfinder.cost_method.crawl(class, pos, parent)
+	-- Check if in solid
+	for y=pos.y,pos.y+class.size.y-1 do
+		for z=pos.z,pos.z+class.size.z-1 do
+			for x=pos.x,pos.x+class.size.x-1 do
+				local node = minetest.get_node_or_nil({x=x, y=y, z=z})
+				if not node then return nil end
+				if minetest.registered_nodes[node.name].walkable then
+					return math.huge
+				end
+			end
+		end
+	end
+
+	-- Check if touching solid
+	-- xz-plane
+	for x=pos.x-1,pos.x+class.size.x do
+		for z=pos.z-1,pos.z+class.size.z do
+			local node_n = minetest.get_node_or_nil({x=x, y=pos.y-1, z=z})
+			if not node_n then return nil end
+			if minetest.registered_nodes[node_n.name].walkable then
+				return 1
+			end
+			local node_p = minetest.get_node_or_nil({x=x, y=pos.y+class.size.y, z=z})
+			if not node_p then return nil end
+			if minetest.registered_nodes[node_p.name].walkable then
+				return 1
+			end
+		end
+	end
+	-- xy-plane
+	for x=pos.x,pos.x+class.size.x-1 do
+		for y=pos.y,pos.y+class.size.y-1 do
+			local node_n = minetest.get_node_or_nil({x=x, y=y, z=pos.z-1})
+			if not node_n then return nil end
+			if minetest.registered_nodes[node_n.name].walkable then
+				return 1
+			end
+			local node_p = minetest.get_node_or_nil({x=x, y=y, z=pos.z+class.size.z})
+			if not node_p then return nil end
+			if minetest.registered_nodes[node_p.name].walkable then
+				return 1
+			end
+		end
+	end
+	-- yz-plane
+	for y=pos.y,pos.y+class.size.y-1 do
+		for z=pos.z,pos.z+class.size.z-1 do
+			local node_n = minetest.get_node_or_nil({x=pos.x-1, y=y, z=z})
+			if not node_n then return nil end
+			if minetest.registered_nodes[node_n.name].walkable then
+				return 1
+			end
+			local node_p = minetest.get_node_or_nil({x=pos.x+class.size.z, y=y, z=z})
+			if not node_p then return nil end
+			if minetest.registered_nodes[node_p.name].walkable then
+				return 1
+			end
+		end
+	end
+
+	return math.huge
 end
 
 minetest.register_globalstep(function(dtime)
