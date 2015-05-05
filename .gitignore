@@ -6,7 +6,7 @@ screenshot_*.png
 
 # Blender
 #*.blend
-*.blend*
+*.blend?
 
 ## Generic ignorable patterns and files
 *~
