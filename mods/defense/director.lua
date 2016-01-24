@@ -267,7 +267,7 @@ function director:get_day_count()
 end
 
 function director:save()
-	local file = assert(io.open(minetest.get_worldpath() .. "/defense.txt", "w"))
+	local file = assert(io.open(minetest.get_worldpath() .. "/defense_director_state.txt", "w"))
 	local data = {
 		intensity = self.intensity,
 		cooldown_timer = self.cooldown_timer,
@@ -280,7 +280,7 @@ function director:save()
 end
 
 function director:load()
-	local file = io.open(minetest.get_worldpath() .. "/defense.txt", "r")
+	local file = io.open(minetest.get_worldpath() .. "/defense_director_state.txt", "r")
 	if file then
 		local data = minetest.deserialize(file:read("*all"))
 		if data then

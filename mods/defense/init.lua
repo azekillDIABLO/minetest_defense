@@ -1,21 +1,8 @@
 defense = {}
+defense.regeneration_rate = 0.2
 defense.debug = false
 
-minetest.register_chatcommand("debug", {
-	params = "",
-	description = "Toggle Defense debug mode",
-	privs = {server=true},
-	func = function(name, param)
-		defense.debug = not defense.debug
-		if defense.debug then
-			regeneration.rate = 100
-			minetest.set_timeofday(0.3)
-		else
-			regeneration.rate = 0.2
-		end
-		return true
-	end,
-})
+regeneration.rate = defense.regeneration_rate;
 
 local modpath = minetest.get_modpath("defense")
 local function dofile2(file)
@@ -41,3 +28,5 @@ dofile2("mobs/aranay.lua")
 dofile2("mobs/sarangay.lua")
 dofile2("mobs/paniki.lua")
 dofile2("mobs/botete.lua")
+
+dofile2("debug.lua")

@@ -54,7 +54,6 @@ defense.mobs.register_mob("defense:aranay", {
 	collisionbox = {-0.4,-0.01,-0.4, 0.4,0.8,0.4},
 	mesh = "defense_aranay_core.b3d",
 	makes_footstep_sound = true,
-	automatic_face_movement_dir = false,
 
 	animation = {
 		idle = {a=0, b=19, rate=20},
@@ -96,7 +95,7 @@ defense.mobs.register_mob("defense:aranay", {
 				local abs_dot = math.abs(dot(dir, wall))
 				local up = vector.normalize(vector.add(wall, vector.multiply(dir, -abs_dot)))
 				local rot = calculate_rotation(dir, up)
-				self.rotation = vector.multiply(rot, -180/math.pi)
+				self.rotation = {x=0,y=math.pi/2,z=0}
 			end
 			self.proxy:set_attach(self.object, "", {x=0, y=0, z=0}, self.rotation)
 		end
@@ -118,6 +117,7 @@ defense.mobs.register_mob("defense:aranay", {
 		if anim_prop then
 			self.current_animation = name
 			self.current_animation_end = self.timer + (anim_prop.b - anim_prop.a - 1) / anim_prop.rate
+			-- This is the diff line
 			self.proxy:set_animation({x=anim_prop.a, y=anim_prop.b}, anim_prop.rate, 0)
 		end
 	end,

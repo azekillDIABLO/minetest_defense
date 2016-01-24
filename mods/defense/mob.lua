@@ -34,6 +34,8 @@ mobs.default_prototype = {
 	cache_find_nearest_player = nil,
 }
 
+local function vec_zero() return {x=0, y=0, z=0} end
+
 function mobs.default_prototype:on_activate(staticdata)
 	self.object:set_armor_groups({fleshy = 100 - self.armor})
 	if self.movement ~= "air" then
@@ -64,7 +66,7 @@ function mobs.default_prototype:on_step(dtime)
 	end
 	if self.movement == "crawl" then
 		if self:is_standing() then
-			self.object:setacceleration({x=0, y=0, z=0})
+			self.object:setacceleration(vec_zero())
 		else
 			self.object:setacceleration({x=0, y=mobs.gravity, z=0})
 		end
@@ -190,7 +192,7 @@ function mobs.default_prototype:jump(direction)
 			direction.y = 0
 			direction = vector.normalize(direction)
 		else
-			direction = {x=0,y=0,z=0}
+			direction = vec_zero()
 		end
 		local v = self.object:getvelocity()
 		v.y = math.sqrt(2 * -mobs.gravity * (self.jump_height + 0.2))
@@ -354,7 +356,7 @@ function mobs.move_method:air(dtime, destination)
 	end
 	self.object:setvelocity(vector.add(
 		vector.multiply(self.object:getvelocity(), t),
-		vector.multiply(vector.normalize(delta), speed * (1-t))
+		vector.multiply(dist > 0 and vector.normalize(delta) or vec_zero(), speed * (1-t))
 	))
 	
 	if speed > self.move_speed * 0.04 then
@@ -385,7 +387,7 @@ function mobs.move_method:ground(dtime, destination)
 		t = math.pow(0.4, dtime)
 		speed = speed * 0.9
 	end
-	local dir = vector.normalize(delta)
+	local dir = dist > 0 and vector.normalize(delta) or vec_zero()
 	local v2 = vector.add(
 		vector.multiply(v, t),
 		vector.multiply(dir, speed * (1-t))

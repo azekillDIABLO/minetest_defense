@@ -145,10 +145,13 @@ defense.mobs.register_mob("defense:botete", {
 
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
-		if self.last_attack_time + self.attack_interval * 0.5 < self.timer then
+		if self.last_attack_time + self.attack_interval * 0.5 < self.timer or self.last_attack_time + 0.5 > self.timer then
 			self:hunt()
 		elseif not self.destination then
 			self.destination = vector.add(self.object:getpos(), {x=math.random(-10,10), y=math.random(-5,6), z=math.random(-10,10)})
+
+			self.automatic_face_movement_dir = true
+			self.object:set_properties({automatic_face_movement_dir = self.automatic_face_movement_dir})
 		end
 	end,
 
@@ -185,6 +188,9 @@ defense.mobs.register_mob("defense:botete", {
 		local projectile = minetest.add_entity(pos, "defense:gooball")
 		projectile:setvelocity(v)
 		self.object:setvelocity(vector.multiply(v, -0.4))
+
+		self.automatic_face_movement_dir = false
+		self.object:set_properties({automatic_face_movement_dir = self.automatic_face_movement_dir})
 
 		if math.random() < 0.1 then
 			self.attack_range = 4 + math.random() * 4
