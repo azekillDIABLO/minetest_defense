@@ -8,7 +8,7 @@ local current_music = nil
 local last_intensity = 0
 local last_update_time = 0
 
-function music:update()
+local function update()
 	local time = os.time()
 	if current_level > 0 then
 		if time < last_update_time + music.loop_length then
@@ -77,5 +77,5 @@ function music:update()
 end
 
 minetest.register_globalstep(function(dtime)
-	music:update()
+	update()
 end)

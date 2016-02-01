@@ -1,6 +1,6 @@
 defense.director = {}
 local director = defense.director
-director.call_interval = 1.0
+director.update_interval = 1.0
 director.intensity_decay = 0.93
 director.max_entities = 50
 director.spawn_list = {
@@ -14,7 +14,7 @@ director.spawn_list = {
 		probability = 0.4,
 		day_start = 0,
 		spawn_time = 14.0,
-		spawn_location = "ground",
+		spawn_location_type = "ground",
 	},
 	{
 		description = "Unggoy horde",
@@ -26,7 +26,7 @@ director.spawn_list = {
 		probability = 0.8,
 		day_start = 1,
 		spawn_time = 31.0,
-		spawn_location = "ground",
+		spawn_location_type = "ground",
 	},
 	{
 		description = "Aranay group",
@@ -38,7 +38,7 @@ director.spawn_list = {
 		probability = 0.3,
 		day_start = 0,
 		spawn_time = 18.0,
-		spawn_location = "ground",
+		spawn_location_type = "ground",
 	},
 	{
 		description = "Paniki group",
@@ -50,7 +50,7 @@ director.spawn_list = {
 		probability = 0.6,
 		day_start = 0,
 		spawn_time = 9.0,
-		spawn_location = "air",
+		spawn_location_type = "air",
 	},
 	{
 		description = "Sarangay",
@@ -62,7 +62,7 @@ director.spawn_list = {
 		probability = 0.4,
 		day_start = 2,
 		spawn_time = 90.0,
-		spawn_location = "ground",
+		spawn_location_type = "ground",
 	},
 	{
 		description = "Botete",
@@ -74,7 +74,7 @@ director.spawn_list = {
 		probability = 0.4,
 		day_start = 1,
 		spawn_time = 90.0,
-		spawn_location = "air",
+		spawn_location_type = "air",
 	},
 }
 
@@ -90,43 +90,15 @@ for _,m in ipairs(director.spawn_list) do
 	spawn_timers[m.description] = m.spawn_time/2
 end
 
-function director:on_interval()
-	self:update_intensity()
-	if defense.debug then
-		-- minetest.chat_send_all("Intensity: " .. self.intensity)
-	end
-
-	if self.cooldown_timer <= 0 then
-		if defense:is_dark() and #minetest.luaentities < self.max_entities and not defense.debug then
-			self:spawn_monsters()
-		end
-
-		if self.intensity > 0.5 then
-			self.cooldown_timer = math.random(5, 5 + 80 * (self.intensity - 0.5))
-		end
-	else
-		self.cooldown_timer = self.cooldown_timer - self.call_interval
-		if defense.debug then
-			minetest.chat_send_all("Cooldown: " .. self.cooldown_timer)
-		end
-	end
-
-	for k,v in pairs(spawn_timers) do
-		if v > 0 then 
-			spawn_timers[k] = v - self.call_interval
-		end
-	end
-end
-
-function director:spawn_monsters()
+local function spawn_monsters()
 	-- Filter eligible monsters
 	local filtered = {}
-	for _,m in ipairs(self.spawn_list) do
+	for _,m in ipairs(director.spawn_list) do
 		if spawn_timers[m.description] <= 0
-			and self:get_day_count() >= m.day_start
+			and defense.get_day_count() >= m.day_start
 			and math.random() < m.probability
-			and self.intensity >= m.intensity_min
-			and self.intensity <= m.intensity_max then
+			and director.intensity >= m.intensity_min
+			and director.intensity <= m.intensity_max then
 			table.insert(filtered, m)
 		end
 	end
@@ -136,23 +108,18 @@ function director:spawn_monsters()
 	local monster = filtered[math.random(#filtered)]
 
 	-- Determine group size
-	local intr = math.max(0, math.min(1, self.intensity + math.random() * 2 - 1))
+	local intr = math.max(0, math.min(1, director.intensity + math.random() * 2 - 1))
 	local group_size = math.floor(0.5 + monster.group_max + (monster.group_min - monster.group_max) * intr)
 
 	-- Find the spawn position
-	local pos = self:find_spawn_position(monster.spawn_location)
+	local pos = find_spawn_position(monster.spawn_location_type)
 	if not pos then
-		if defense.debug then
-			minetest.chat_send_all("No spawn point found for " .. monster.description .. "!")
-		end
+		defense:log("No spawn point found for " .. monster.description .. "!")
 		return false
 	end
 
 	-- Spawn
-	if defense.debug then
-		minetest.chat_send_all("Spawn " .. monster.description .. " (" .. group_size .. " " .. 
-			monster.name .. ") at " .. minetest.pos_to_string(pos))
-	end
+	defense:log("Spawn " .. monster.description .. " (" .. group_size .. " " ..  monster.name .. ") at " .. minetest.pos_to_string(pos))
 	repeat
 		minetest.after(group_size * (math.random() * 0.2), function()
 			local obj = minetest.add_entity(pos, monster.name)
@@ -163,7 +130,7 @@ function director:spawn_monsters()
 	return true
 end
 
-function director:find_spawn_position(spawn_location)
+local function find_spawn_position(spawn_location_type)
 	local players = minetest.get_connected_players()
 	if #players == 0 then
 		return nil
@@ -185,7 +152,7 @@ function director:find_spawn_position(spawn_location)
 			local a = math.random() * 2 * math.pi
 			pos.x = pos.x + math.cos(a) * r
 			pos.z = pos.z + math.sin(a) * r
-			if spawn_location == "ground" then
+			if spawn_location_type == "ground" then
 				-- Move pos to on ground
 				pos.y = pos.y + 10
 				local d = -1
@@ -205,7 +172,7 @@ function director:find_spawn_position(spawn_location)
 						break
 					end
 				end
-			elseif spawn_location == "air" then
+			elseif spawn_location_type == "air" then
 				-- Move pos up
 				pos.y = pos.y + 12 + math.random() * 12
 				local node = minetest.get_node_or_nil(pos)
@@ -236,7 +203,7 @@ function director:find_spawn_position(spawn_location)
 	return nil
 end
 
-function director:update_intensity()
+local function update_intensity()
 	local players = minetest.get_connected_players()
 	if #players == 0 then
 		return
@@ -258,19 +225,37 @@ function director:update_intensity()
 	last_average_health = average_health
 	last_mob_count = mob_count
 
-	self.intensity = math.max(0, math.min(1, self.intensity * self.intensity_decay + delta))
+	director.intensity = math.max(0, math.min(1, director.intensity * director.intensity_decay + delta))
 end
 
-function director:get_day_count()
-	local time_speed = minetest.setting_get("time_speed")
-	return math.floor(minetest.get_gametime() * time_speed / 86400)
+local function update()
+	update_intensity()
+
+	if director.cooldown_timer <= 0 then
+		if defense:is_dark() and #minetest.luaentities < director.max_entities and not defense.debug then
+			spawn_monsters()
+		end
+
+		if director.intensity > 0.5 then
+			director.cooldown_timer = math.random(5, 5 + 80 * (director.intensity - 0.5))
+		end
+	else
+		director.cooldown_timer = director.cooldown_timer - director.update_interval
+		defense:log("Cooldown: " .. director.cooldown_timer)
+	end
+
+	for k,v in pairs(spawn_timers) do
+		if v > 0 then 
+			spawn_timers[k] = v - director.update_interval
+		end
+	end
 end
 
-function director:save()
+local function save()
 	local file = assert(io.open(minetest.get_worldpath() .. "/defense_director_state.txt", "w"))
 	local data = {
-		intensity = self.intensity,
-		cooldown_timer = self.cooldown_timer,
+		intensity = director.intensity,
+		cooldown_timer = director.cooldown_timer,
 		spawn_timers = spawn_timers,
 		last_average_health = last_average_health,
 		last_mob_count = last_mob_count,
@@ -279,13 +264,13 @@ function director:save()
 	assert(file:close())
 end
 
-function director:load()
+local function load()
 	local file = io.open(minetest.get_worldpath() .. "/defense_director_state.txt", "r")
 	if file then
 		local data = minetest.deserialize(file:read("*all"))
 		if data then
-			self.intensity = data.intensity
-			self.cooldown_timer = data.cooldown_timer
+			director.intensity = data.intensity
+			director.cooldown_timer = data.cooldown_timer
 			last_average_health = data.last_average_health
 			last_mob_count = data.last_mob_count
 			for k,v in pairs(data.spawn_timers) do
@@ -297,15 +282,15 @@ function director:load()
 end
 
 minetest.register_on_shutdown(function()
-	director:save()
+	save()
 end)
-director:load()
+load()
 
-local last_call_time = 0
+local last_update_time = 0
 minetest.register_globalstep(function(dtime)
 	local gt = minetest.get_gametime()
-	if last_call_time + director.call_interval < gt then
-		director:on_interval()
-		last_call_time = gt
+	if last_update_time + director.update_interval < gt then
+		update()
+		last_update_time = gt
 	end
 end)

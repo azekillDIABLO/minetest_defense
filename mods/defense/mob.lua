@@ -13,7 +13,7 @@ mobs.default_prototype = {
 	id = 0,
 	smart_path = true,
 	mass = 1,
-	movement = "ground", -- "ground"/"air"
+	movement = "ground", -- "ground"/"air"/"crawl"
 	move_speed = 1,
 	jump_height = 1,
 	armor = 0,
@@ -33,6 +33,8 @@ mobs.default_prototype = {
 	cache_is_standing = nil,
 	cache_find_nearest_player = nil,
 }
+
+local reg_nodes = minetest.registered_nodes
 
 local function vec_zero() return {x=0, y=0, z=0} end
 
@@ -83,7 +85,7 @@ function mobs.default_prototype:on_step(dtime)
 	-- Remove when far enough and may not reach the player at all
 	local nearest = self:find_nearest_player()
 	if self.life_timer <= 0 then
-		if nearest.distance > 6 then
+		if nearest.distance > 12 then
 			self.object:remove()
 		end
 	else
@@ -154,16 +156,9 @@ function mobs.default_prototype:hunt()
 			self:do_attack(nearest.player)
 		end
 		if nearest.distance > self.attack_range or nearest.distance < self.attack_range/2-1 then
-			local pos = self.object:getpos()
-			local direction = nil
-			if self.smart_path and nearest.distance < defense.pathfinder.path_max_range then
-				direction = defense.pathfinder:get_direction(self.name, pos)
-			end
+			-- TODO Use pathfinder
 
-			if direction then
-				minetest.chat_send_all("dir:" .. minetest.pos_to_string(direction))
-				self.destination = vector.add(pos, vector.multiply(direction, 1.2))
-			else
+			if not self.destination then
 				local r = math.max(0, self.attack_range - 2)
 				local dir = vector.direction(nearest.position, self.object:getpos())
 				self.destination = vector.add(nearest.position, vector.multiply(dir, r))
@@ -239,7 +234,7 @@ function mobs.default_prototype:is_standing()
 	}
 	for _,c in ipairs(corners) do
 		local node = minetest.get_node_or_nil(c)
-		if not node or minetest.registered_nodes[node.name].walkable then
+		if not node or reg_nodes[node.name].walkable then
 			self.cache_is_standing = true
 			return true
 		end
@@ -316,7 +311,7 @@ function mobs.default_prototype:calculate_wall_normal()
 				if xi ~= 2 and yi ~= 2 and zi ~= 2 then
 					local sp = vector.add(p, {x=xs[xi], y=ys[yi], z=zs[zi]})
 					local node = minetest.get_node_or_nil(sp)
-					if node and minetest.registered_nodes[node.name].walkable then
+					if node and reg_nodes[node.name].walkable then
 						normal = vector.add(normal, {x=normals[xi], y=normals[yi], z=normals[zi]})
 						count = count + 1
 					end
@@ -398,15 +393,7 @@ function mobs.move_method:ground(dtime, destination)
 	-- Check for jump
 	local jump = nil
 	if self.smart_path then
-		local p = self.object:getpos()
-		if destination.y > p.y + 0.55 then
-			for y=p.y,p.y+self.jump_height do
-				jump = defense.pathfinder:get_direction(self.name, {x=p.x, y=y, z=p.z})
-				if not jump or (jump.x ~= 0 or jump.z ~= 0) then
-					break
-				end
-			end
-		end
+		-- TODO Jump to destination
 	else
 		if dist > 1 then
 			local p = self.object:getpos()
@@ -422,7 +409,7 @@ function mobs.move_method:ground(dtime, destination)
 			}
 			for _,f in ipairs(fronts) do
 				local node = minetest.get_node_or_nil(vector.add(p, f))
-				if not node or minetest.registered_nodes[node.name].walkable then
+				if not node or reg_nodes[node.name].walkable then
 					jump = vector.direction(self.object:getpos(), destination)
 					break
 				end
@@ -488,14 +475,10 @@ function mobs.register_mob(name, def)
 
 	if defense.pathfinder and prototype.smart_path then
 		defense.pathfinder:register_class(name, {
-			size = {
-				x = math.ceil(prototype.collisionbox[4] - prototype.collisionbox[1]),
-				y = math.ceil(prototype.collisionbox[5] - prototype.collisionbox[2]),
-				z = math.ceil(prototype.collisionbox[6] - prototype.collisionbox[3])
-			},
 			collisionbox = prototype.collisionbox,
 			jump_height = math.floor(prototype.jump_height),
-			cost_method = def.pathfinder_cost or defense.pathfinder.cost_method[prototype.movement]
+			path_check = def.pathfinder_check or defense.pathfinder.default_path_check[prototype.movement],
+			cost_method = def.pathfinder_cost or defense.pathfinder.default_cost_method[prototype.movement],
 		})
 	end
 
