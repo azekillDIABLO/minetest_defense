@@ -19,24 +19,66 @@ local neighbors = {
 	{x = 0, y = 0, z = 1},
 }
 
-pathfinder.classes = classes -- For debug
+-- Returns object {surface=[min_x,min_y,min_z,max_x,max_y,max_z], normal={x,y,z}}
+local function compute_sector_interface(sector1, sector2)
+	local min_x = math.max(sector1.min_x, sector2.min_x)
+	local min_y = math.max(sector1.min_y, sector2.min_y)
+	local min_z = math.max(sector1.min_z, sector2.min_z)
 
-function pathfinder:register_class(class_name, properties)
-	table.insert(pathfinder.class_names, class_name)
-	classes[class_name] = {
-		name = class_name,
-		sectors = {},
-		sector_seeds = Queue.new(),
-		jump_height = properties.jump_height,
-		path_check = properties.path_check,
-		cost_method = properties.cost_method,
-		x_offset = properties.collisionbox[1],
-		y_offset = properties.collisionbox[2],
-		z_offset = properties.collisionbox[3],
-		x_size = math.ceil(properties.collisionbox[4] - properties.collisionbox[1]),
-		y_size = math.ceil(properties.collisionbox[5] - properties.collisionbox[2]),
-		z_size = math.ceil(properties.collisionbox[6] - properties.collisionbox[3]),
+	local max_x = math.min(sector1.max_x, sector2.max_x)
+	local max_y = math.min(sector1.max_y, sector2.max_y)
+	local max_z = math.min(sector1.max_z, sector2.max_z)
+
+	local normal = vector.new()
+
+	if min_x > max_x then
+		min_x = (min_x + max_x) / 2
+		max_x = min_x
+		normal.x = sector1.min_x < sector2.min_x and 1 or -1
+		normal.y = 0
+		normal.z = 0
+	elseif min_y > max_y then
+		min_y = (min_y + max_y) / 2
+		max_y = min_y
+		normal.x = 0
+		normal.y = sector1.min_y < sector2.min_y and 1 or -1
+		normal.z = 0
+	elseif min_z > max_z then
+		min_z = (min_z + max_z) / 2
+		max_z = min_z
+		normal.x = 0
+		normal.y = 0
+		normal.z = sector1.min_z < sector2.min_z and 1 or -1
+	end
+
+	return {
+		surface = {
+			min_x,min_y,min_z,
+			max_x,max_y,max_z
+		},
+		normal = normal,
 	}
+end
+
+local function to_world_pos(class, vec)
+	return {
+		x = vec.x + (class.x_size - 1 - class.collisionbox[1] - class.collisionbox[4]) / 2,
+		y = vec.y + (class.y_size - 1 - class.collisionbox[2] - class.collisionbox[5]) / 2,
+		z = vec.z + (class.z_size - 1 - class.collisionbox[3] - class.collisionbox[6]) / 2,
+	}
+end
+
+local function to_grid_pos(class, vec)
+	return {
+		x = math.floor(vec.x + class.x_offset + 0.5),
+		y = math.floor(vec.y + class.y_offset + 0.5),
+		z = math.floor(vec.z + class.z_offset + 0.5)
+	}
+end
+
+local function get_player_pos(player)
+	local pos = player:getpos()
+	return math.floor(pos.x + 0.5), math.floor(pos.y + 0.5), math.floor(pos.z + 0.5)
 end
 
 local function sector_contains(sector, x, y, z)
@@ -54,13 +96,6 @@ local function find_containing_sector(class, x, y, z)
 	return nil
 end
 
-pathfinder.find_containing_sector = find_containing_sector -- For debug
-
-local function get_player_pos(player)
-	local pos = player:getpos()
-	return math.floor(pos.x + 0.5), math.floor(pos.y + 0.5), math.floor(pos.z + 0.5)
-end
-
 -- Deletes and queues a sector for regeneration
 local function invalidate_sector(sector, class)
 	local id = sector.id
@@ -72,6 +107,13 @@ local function invalidate_sector(sector, class)
 
 	Queue.push(class.sector_seeds, {sector.min_x,sector.min_y,sector.min_z, nil,0})
 	-- TODO what if replacement seed is blocked?
+end
+
+local function invalidate_containing_sector(class, x, y, z)
+	local sector = find_containing_sector(class, x, y, z)
+	if sector then
+		invalidate_sector(sector, class)
+	end
 end
 
 -- Calculates the distances for each sector
@@ -106,7 +148,7 @@ local function calculate_distances(class)
 		local distance = sector.distance
 		for i,l in pairs(sector.links) do
 			if not visited_ids[i] then
-				local cost = cost_method(sector, l)
+				local cost = cost_method(class, sector, l)
 				local new_ldist = distance + cost
 				local ldist = l.distance
 				if ldist == nil or ldist > new_ldist then
@@ -118,7 +160,7 @@ local function calculate_distances(class)
 	end
 end
 
--- Returns array of {x,y,z,parent,parent_dir}
+-- Returns array [x,y,z, parent,parent_dir]
 local function find_sector_exits(sector, class)
 	local sides = {
 		{0,1,1,
@@ -175,6 +217,7 @@ local function find_sector_exits(sector, class)
 					tmp_vec.z = z
 					local hash = minetest.hash_node_position(tmp_vec)
 
+					-- TODO Supply parent pos to path_check
 					if path_check_i(x, y, z) then
 
 						local val = 0
@@ -417,6 +460,7 @@ local function update_class(class)
 		local y = seed[2]
 		local z = seed[3]
 
+		-- TODO Supply parent pos to path_check
 		if not find_containing_sector(class, x, y, z) and path_check(class, {x=x,y=y,z=z}, nil) then
 			local new_sector = generate_sector(class, x, y, z, seed[5])
 			local parent = seed[4]
@@ -482,17 +526,31 @@ end
 -- Cost methods
 
 pathfinder.default_cost_method = {}
-function pathfinder.default_cost_method.air(src_sector, dst_sector)
+function pathfinder.default_cost_method.air(class, src_sector, dst_sector)
 	local dx = ((dst_sector.min_x + dst_sector.max_x) - (src_sector.min_x + src_sector.max_x)) / 2
 	local dy = ((dst_sector.min_y + dst_sector.max_y) - (src_sector.min_y + src_sector.max_y)) / 2
 	local dz = ((dst_sector.min_z + dst_sector.max_z) - (src_sector.min_z + src_sector.max_z)) / 2
 	return math.sqrt(dx*dx + dy*dy + dz*dz)
 end
-function pathfinder.default_cost_method.ground(src_sector, dst_sector)
-	return 1
+function pathfinder.default_cost_method.ground(class, src_sector, dst_sector)
+	local dy = dst_sector.min_y - src_sector.min_y
+	if dy > class.jump_height then
+		return math.huge
+	end
+	local dx = ((dst_sector.min_x + dst_sector.max_x) - (src_sector.min_x + src_sector.max_x)) / 2
+	local dz = ((dst_sector.min_z + dst_sector.max_z) - (src_sector.min_z + src_sector.max_z)) / 2
+	if dy >= 0 then
+		dy = dy * 1.5
+	else
+		dy = 1
+	end
+	return math.sqrt(dx*dx + dz*dz) + dy
 end
-function pathfinder.default_cost_method.crawl(src_sector, dst_sector)
-	return 1
+function pathfinder.default_cost_method.crawl(class, src_sector, dst_sector)
+	local dx = ((dst_sector.min_x + dst_sector.max_x) - (src_sector.min_x + src_sector.max_x)) / 2
+	local dy = ((dst_sector.min_y + dst_sector.max_y) - (src_sector.min_y + src_sector.max_y)) / 2
+	local dz = ((dst_sector.min_z + dst_sector.max_z) - (src_sector.min_z + src_sector.max_z)) / 2
+	return math.abs(dx) + math.abs(dy) + math.abs(dz)
 end
 
 
@@ -518,11 +576,148 @@ function pathfinder.default_path_check.air(class, pos, parent)
 	return true
 end
 function pathfinder.default_path_check.ground(class, pos, parent)
+	local tmp_vec = vector.new()
+	for z = pos.z, pos.z + class.z_size - 1 do
+		for y = pos.y, pos.y + class.y_size - 1 do
+			for x = pos.x, pos.x + class.x_size - 1 do
+				tmp_vec.x = x
+				tmp_vec.y = y
+				tmp_vec.z = z
+				local node = minetest.get_node_or_nil(tmp_vec)
+				if not node then return nil end
+				if reg_nodes[node.name].walkable then
+					return false
+				end
+			end
+		end
+	end
+
+	-- Find ground
+	for z = pos.z - 1, pos.z + class.z_size do
+		for x = pos.x - 1, pos.x + class.x_size do
+			local ledge_distance = math.abs(x - pos.x) + math.abs(z - pos.z)
+			local last_walkable = false
+			for y = pos.y, pos.y - class.jump_height - 1, -1 do
+				tmp_vec.x = x
+				tmp_vec.y = y
+				tmp_vec.z = z
+				local node = minetest.get_node_or_nil(tmp_vec)
+				if not node then return nil end
+
+				local walkable = reg_nodes[node.name].walkable
+				if y < pos.y and ledge_distance < pos.y - y
+				   and walkable and not last_walkable then
+					return true
+				end
+				last_walkable = walkable
+			end
+		end
+	end
+
+	-- TODO How to allow falls?
+
 	return false
 end
 function pathfinder.default_path_check.crawl(class, pos, parent)
 	return false
 end
+
+
+
+----------------
+-- PUBLIC API --
+----------------
+
+pathfinder.classes = classes -- For debug
+pathfinder.find_containing_sector = find_containing_sector -- For debug
+
+-- Registers a pathfinder class
+function pathfinder:register_class(class_name, properties)
+	table.insert(pathfinder.class_names, class_name)
+	classes[class_name] = {
+		name = class_name,
+		sectors = {},
+		sector_seeds = Queue.new(),
+		jump_height = properties.jump_height,
+		path_check = properties.path_check,
+		cost_method = properties.cost_method,
+		collisionbox = properties.collisionbox,
+		x_offset = properties.collisionbox[1] + 0.01,
+		y_offset = properties.collisionbox[2] + 0.01,
+		z_offset = properties.collisionbox[3] + 0.01,
+		x_size = math.ceil(properties.collisionbox[4] - properties.collisionbox[1]),
+		y_size = math.ceil(properties.collisionbox[5] - properties.collisionbox[2]),
+		z_size = math.ceil(properties.collisionbox[6] - properties.collisionbox[3]),
+	}
+end
+
+-- Returns the destination for an entity of class class_name at position (x,y,z) to get to the nearest player
+function pathfinder:get_waypoint(class_name, x, y, z)
+	local class = classes[class_name]
+
+	local grid_pos = to_grid_pos(class, {x=x, y=y, z=z})
+	local gx = grid_pos.x
+	local gy = grid_pos.y
+	local gz = grid_pos.z
+
+	local sector = find_containing_sector(class, gx, gy, gz)
+	if not sector or sector.distance == nil then return nil end
+
+	if sector.distance == 0 then
+		local players = minetest.get_connected_players()
+		if #players then
+			local nearest_player = nil
+			local nearest_dist_sq = math.huge
+			for _,p in ipairs(players) do
+				local px, py, pz = get_player_pos(p)
+				if sector_contains(sector, px, py, pz) then
+					local dx = px - gx;
+					local dy = py - gy;
+					local dz = pz - gz;
+					local dist_sq = dx*dx + dy*dy + dz*dz;
+					if dist_sq < nearest_dist_sq then
+						nearest_dist_sq = dist_sq
+						nearest_player = p
+					end
+				end
+			end
+			if nearest_player then
+				return nearest_player:getpos()
+			else
+				return nil
+			end
+		end
+		return nil
+	end
+
+	local nearest_link = nil
+	for i,l in pairs(sector.links) do
+		if l.distance ~= nil
+		   and (not nearest_link or l.distance < nearest_link.distance) then
+			nearest_link = l
+		end
+	end
+	if not nearest_link then return nil end
+
+	local interface = compute_sector_interface(sector, nearest_link)
+	if not interface then
+		defense:log("Error! No interface found between sectors " .. sector.id .. " and " .. nearest_link.id .. " in " .. class_name)
+		return nil
+	end
+
+	local surface = interface.surface
+	local normal = interface.normal
+
+	local waypoint = {
+		x = math.max(surface[1], math.min(surface[4], gx)),
+		y = math.max(surface[2], math.min(surface[5], gy)),
+		z = math.max(surface[3], math.min(surface[6], gz))
+	}
+	local distance = vector.distance(waypoint, {x=x,y=y,z=z})
+	local waypoint_offset = math.min(1, math.max(-1, 1 - distance))
+	return to_world_pos(class, vector.add(waypoint, vector.multiply(normal, waypoint_offset)))
+end
+
 
 
 local last_update_time = 0
@@ -531,5 +726,16 @@ minetest.register_globalstep(function(dtime)
 	if last_update_time + pathfinder.update_interval < gt then
  		update()
 		last_update_time = gt
+	end
+end)
+
+minetest.register_on_placenode(function(pos, newnode, placer, oldnode, itemstack, pointed_thing)
+	for n,c in pairs(classes) do
+		invalidate_containing_sector(c, pos.x, pos.y, pos.z)
+	end
+end)
+minetest.register_on_dignode(function(pos, oldnode, digger)
+	for n,c in pairs(classes) do
+		invalidate_containing_sector(c, pos.x, pos.y, pos.z)
 	end
 end)

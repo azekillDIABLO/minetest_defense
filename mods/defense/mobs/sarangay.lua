@@ -75,7 +75,7 @@ defense.mobs.register_mob("defense:sarangay", {
 				elseif nearest.distance < 4 then
 					self:hunt()
 				else
-					local dir = vector.direction(nearest.position, pos)
+					local dir = vector.aim(nearest.position, pos)
 					self.destination = vector.add(nearest.position, vector.multiply(dir, 12))
 				end
 			end
@@ -137,7 +137,7 @@ defense.mobs.register_mob("defense:sarangay", {
 					local m = e.mass or 10
 					local v = vector.add(o:getvelocity(), vector.multiply(myv, 1/m))
 					if v then
-						local dir = vector.direction(self.object:getpos(), o:getpos())
+						local dir = vector.aim(self.object:getpos(), o:getpos())
 						dir.y = dir.y + 1
 						o:setvelocity(vector.add(v, vector.multiply(dir, 3/m)))
 					end

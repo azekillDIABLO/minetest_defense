@@ -12,7 +12,7 @@ local function place_goo(pos, life)
 
 	if node.name == "defense:goo" then
 		minetest.dig_node(pos)
-		minetest.set_node(pos, {name="defense:goo_block"})
+		minetest.place_node(pos, {name="defense:goo_block"})
 		minetest.get_meta(pos):set_int("life", life)
 		return true
 	else
@@ -36,7 +36,7 @@ local function place_goo(pos, life)
 		if dir then
 			local wallmounted = minetest.dir_to_wallmounted(dir)
 			if minetest.registered_nodes[node.name].buildable_to then
-				minetest.set_node(pos, {name="defense:goo", param2=wallmounted})
+				minetest.place_node(pos, {name="defense:goo", param2=wallmounted})
 				minetest.get_meta(pos):set_int("life", life)
 				return true
 			end
@@ -71,7 +71,7 @@ local function goo_consume(pos, life)
 
 	if count >= math.random(2,5) then
 		minetest.dig_node(pos)
-		minetest.set_node(pos, {name="defense:goo_block"})
+		minetest.place_node(pos, {name="defense:goo_block"})
 		minetest.get_meta(pos):set_int("life", life)
 	end
 end
@@ -166,6 +166,7 @@ defense.mobs.register_mob("defense:botete", {
 		local angle
 		local delta = vector.subtract(obj:getpos(), pos)
 		local x2 = delta.x*delta.x + delta.z*delta.z
+		if x2 == 0 then return end
 		local s2 = s*s
 		local r = s2*s2 - g * (g*x2 + 2*delta.y*s2)
 		if r >= 0 then
@@ -194,6 +195,18 @@ defense.mobs.register_mob("defense:botete", {
 
 		if math.random() < 0.1 then
 			self.attack_range = 4 + math.random() * 4
+		end
+	end,
+
+	on_death = function(self)
+		local pos = self.object:getpos()
+		for i=1,math.random(5,7) do
+			local projectile = minetest.add_entity(pos, "defense:gooball")
+			projectile:setvelocity({
+				x = -2 + math.random() * 4,
+				y = -1 + math.random() * 4,
+				z = -2 + math.random() * 4
+			})
 		end
 	end,
 })

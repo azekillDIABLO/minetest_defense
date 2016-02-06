@@ -29,7 +29,7 @@ minetest.register_chatcommand("debug_pf", {
 	params = "<class>",
 	privs = {server=true},
 	func = function(name, class)
-		if class then
+		if class and class ~= "" then
 			if defense.pathfinder.classes[class] then
 				pf_class_name = class
 				pf_player = minetest.get_player_by_name(name)

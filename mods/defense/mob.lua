@@ -10,8 +10,8 @@ mobs.default_prototype = {
 	automatic_face_movement_dir = true,
 	stepheight = 0.6,
 	-- custom properties
-	id = 0,
-	smart_path = true,
+	id = 0, -- Automatically set
+	smart_path = true, -- Use the pathfinder
 	mass = 1,
 	movement = "ground", -- "ground"/"air"/"crawl"
 	move_speed = 1,
@@ -149,18 +149,24 @@ function mobs.default_prototype:move(dtime, destination)
 	mobs.move_method[self.movement](self, dtime, destination)
 end
 
+-- Sets the appropriate destination point for the goal of attacking the player
 function mobs.default_prototype:hunt()
 	local nearest = self:find_nearest_player()
+
 	if nearest.player then
 		if nearest.distance <= self.attack_range then
 			self:do_attack(nearest.player)
 		end
+
 		if nearest.distance > self.attack_range or nearest.distance < self.attack_range/2-1 then
-			-- TODO Use pathfinder
+			local pos = self.object:getpos()	
+			if self.smart_path then
+				self.destination = defense.pathfinder:get_waypoint(self.name, pos.x, pos.y, pos.z)
+			end
 
 			if not self.destination then
 				local r = math.max(0, self.attack_range - 2)
-				local dir = vector.direction(nearest.position, self.object:getpos())
+				local dir = vector.aim(nearest.position, pos)
 				self.destination = vector.add(nearest.position, vector.multiply(dir, r))
 			end
 		end
@@ -169,38 +175,45 @@ end
 
 function mobs.default_prototype:do_attack(obj)
 	if self.last_attack_time + self.attack_interval < self.timer then
-		local dir = vector.direction(self.object:getpos(), obj:getpos())
+		local dir = vector.aim(self.object:getpos(), obj:getpos())
 		self:attack(obj, dir)
 		self.last_attack_time = self.timer
+
 		if self.current_animation == "move" then
 			self:set_animation("move_attack")
 		else
 			self:set_animation("attack")
 		end
 	end
+
 	self.life_timer = math.min(300, self.life_timer + 60)
 end
 
 function mobs.default_prototype:jump(direction)
 	if self:is_standing() then
 		if direction then
-			direction.y = 0
+			direction.y = 0.1
 			direction = vector.normalize(direction)
 		else
 			direction = vec_zero()
 		end
+
 		local v = self.object:getvelocity()
 		v.y = math.sqrt(2 * -mobs.gravity * (self.jump_height + 0.2))
 		v.x = direction.x * self.jump_height
 		v.z = direction.z * self.jump_height
 		self.object:setvelocity(vector.add(self.object:getvelocity(), v))
+
 		self:set_animation("jump")
 	end
 end
 
 function mobs.default_prototype:die()
-	-- self:on_death()
+	self:on_death()
 	self.object:remove()
+end
+
+function mobs.default_prototype:on_death()
 end
 
 function mobs.default_prototype:is_standing()
@@ -224,8 +237,9 @@ function mobs.default_prototype:is_standing()
 		return false
 	end
 
+	-- Check the four bottom corners for collision
 	local p = self.object:getpos()
-	p.y = p.y + self.collisionbox[2] - 0.5
+	p.y = p.y + self.collisionbox[2] - 0.25
 	local corners = {
 		vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[3]}),
 		vector.add(p, {x=self.collisionbox[1], y=0, z=self.collisionbox[6]}),
@@ -272,22 +286,15 @@ function mobs.default_prototype:find_nearest_player()
 	local p = self.object:getpos()
 	local nearest_player = nil
 	local nearest_pos = p
-	local nearest_dist = 9999
+	local nearest_dist = math.huge
 	for _,obj in ipairs(minetest.get_connected_players()) do
-		if not nearest_player then
+		local pos = obj:getpos()
+		pos.y = pos.y + 1
+		local d = vector.distance(pos, p)
+		if d < nearest_dist then
 			nearest_player = obj
-			nearest_pos = obj:getpos()
-			nearest_pos.y = nearest_pos.y + 1
-			nearest_dist = vector.distance(nearest_pos, p)
-		else
-			local pos = obj:getpos()
-			pos.y = pos.y + 1
-			local d = vector.distance(pos, p)
-			if d < nearest_dist then
-				nearest_player = obj
-				nearest_pos = pos
-				nearest_dist = d
-			end
+			nearest_pos = pos
+			nearest_dist = d
 		end
 	end
 
@@ -327,19 +334,24 @@ function mobs.default_prototype:calculate_wall_normal()
 	end
 end
 
+-- Movement implementations for the default movement types
 mobs.move_method = {}
 function mobs.move_method:air(dtime, destination)
 	local delta = vector.subtract(destination, self.object:getpos())
 	local dist = vector.length(delta)
 
-	local r_angle = (self.id/100000) * 2 * math.pi
-	local r_radius = (self.id/100000) * dist/3
-	delta = vector.add(delta, {
-		x=math.cos(r_angle)*r_radius,
-		y=r_radius,
-		z=math.sin(r_angle)*r_radius
-	})
+	-- Add random variation
+	if dist > 3 then
+		local r_angle = (self.id/100000) * 2 * math.pi
+		local r_radius = (self.id/100000) * (dist - 3)/3
+		delta = vector.add(delta, {
+			x=math.cos(r_angle)*r_radius,
+			y=r_radius,
+			z=math.sin(r_angle)*r_radius
+		})
+	end
 
+	-- Compute smoothing factor
 	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
@@ -349,6 +361,8 @@ function mobs.move_method:air(dtime, destination)
 		t = math.pow(0.4, dtime)
 		speed = speed * 0.9
 	end
+
+	-- Compute and set resulting velocity
 	self.object:setvelocity(vector.add(
 		vector.multiply(self.object:getvelocity(), t),
 		vector.multiply(dist > 0 and vector.normalize(delta) or vec_zero(), speed * (1-t))
@@ -365,14 +379,18 @@ function mobs.move_method:ground(dtime, destination)
 	delta.y = 0
 	local dist = vector.length(delta)
 
-	local r_angle = (self.id/100000) * 2 * math.pi
-	local r_radius = dist/4
-	delta = vector.add(delta, {
-		x=math.cos(r_angle)*r_radius,
-		y=0,
-		z=math.sin(r_angle)*r_radius
-	})
+	-- Add random variation
+	if dist > 4 then
+		local r_angle = (self.id/100000) * 2 * math.pi
+		local r_radius = (dist - 4)/4
+		delta = vector.add(delta, {
+			x=math.cos(r_angle)*r_radius,
+			y=0,
+			z=math.sin(r_angle)*r_radius
+		})
+	end
 
+	-- Compute smoothing factor
 	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
@@ -382,6 +400,8 @@ function mobs.move_method:ground(dtime, destination)
 		t = math.pow(0.4, dtime)
 		speed = speed * 0.9
 	end
+
+	-- Compute and set resulting velocity
 	local dir = dist > 0 and vector.normalize(delta) or vec_zero()
 	local v2 = vector.add(
 		vector.multiply(v, t),
@@ -393,9 +413,13 @@ function mobs.move_method:ground(dtime, destination)
 	-- Check for jump
 	local jump = nil
 	if self.smart_path then
-		-- TODO Jump to destination
+		local p = self.object:getpos()
+		if destination.y - p.y > 1 + dist then
+			jump = vector.aim(self.object:getpos(), destination)
+		end
 	else
 		if dist > 1 then
+			-- Jump over obstacles
 			local p = self.object:getpos()
 			p.y = p.y + self.collisionbox[2] + 0.5
 			local sx = self.collisionbox[4] - self.collisionbox[1]
@@ -410,7 +434,7 @@ function mobs.move_method:ground(dtime, destination)
 			for _,f in ipairs(fronts) do
 				local node = minetest.get_node_or_nil(vector.add(p, f))
 				if not node or reg_nodes[node.name].walkable then
-					jump = vector.direction(self.object:getpos(), destination)
+					jump = vector.aim(self.object:getpos(), destination)
 					break
 				end
 			end
@@ -431,6 +455,7 @@ function mobs.move_method:crawl(dtime, destination)
 	local delta = vector.subtract(destination, self.object:getpos())
 	local dist = vector.length(delta)
 
+	-- Compute smoothing factor
 	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
@@ -441,18 +466,21 @@ function mobs.move_method:crawl(dtime, destination)
 		speed = speed * 0.9
 	end
 
+	-- Compute direction based on wall
 	local wall = self:calculate_wall_normal()
 	if wall and dist > 0 then
 		local dot = math.abs(wall.x * delta.x + wall.y * delta.y + wall.z * delta.z)
 		delta = vector.add(delta, vector.multiply(wall, -dot))
 	end
+
+	-- Compute and set resulting velocity
 	local dir = vector.normalize(delta)
 	local v2 = vector.add(
 		vector.multiply(v, t),
 		vector.multiply(dir, speed * (1-t))
 	)
 	self.object:setvelocity(v2)
-	
+
 	if self:is_standing() then
 		if speed > self.move_speed * 0.06 then
 			self:set_animation("move", {"move_attack"})
@@ -473,6 +501,7 @@ function mobs.register_mob(name, def)
 
 	prototype.move = def.move or mobs.move_method[prototype.movement]
 
+	-- Register for pathfinding
 	if defense.pathfinder and prototype.smart_path then
 		defense.pathfinder:register_class(name, {
 			collisionbox = prototype.collisionbox,

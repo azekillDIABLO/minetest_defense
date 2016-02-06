@@ -3,6 +3,20 @@ local director = defense.director
 director.update_interval = 1.0
 director.intensity_decay = 0.93
 director.max_entities = 50
+
+--[[
+spawn_list: List of spawn events that may happen
+	description: Description for this spawn event (mostly for debugging)
+	name: Name of the entity to spawn
+	intensity_min: Minimum intensity requirement for the event to fire
+	intensity_max: Maximum intensity requirement for the event to fire
+	group_min: Minimum number of entities to spawn when event fires
+	group_max: Maximum number of entities to spawn when event fires
+	probability: Probability of spawning per update (excluding cooldown times)
+	day_start: Number of game days before this event can start happening
+	spawn_time: Spawn cooldown
+	spawn_location_type: ["ground"/"air"] Where entities will appear
+]]
 director.spawn_list = {
 	{
 		description = "Unggoy group",
@@ -90,46 +104,6 @@ for _,m in ipairs(director.spawn_list) do
 	spawn_timers[m.description] = m.spawn_time/2
 end
 
-local function spawn_monsters()
-	-- Filter eligible monsters
-	local filtered = {}
-	for _,m in ipairs(director.spawn_list) do
-		if spawn_timers[m.description] <= 0
-			and defense.get_day_count() >= m.day_start
-			and math.random() < m.probability
-			and director.intensity >= m.intensity_min
-			and director.intensity <= m.intensity_max then
-			table.insert(filtered, m)
-		end
-	end
-	if #filtered == 0 then
-		return false
-	end
-	local monster = filtered[math.random(#filtered)]
-
-	-- Determine group size
-	local intr = math.max(0, math.min(1, director.intensity + math.random() * 2 - 1))
-	local group_size = math.floor(0.5 + monster.group_max + (monster.group_min - monster.group_max) * intr)
-
-	-- Find the spawn position
-	local pos = find_spawn_position(monster.spawn_location_type)
-	if not pos then
-		defense:log("No spawn point found for " .. monster.description .. "!")
-		return false
-	end
-
-	-- Spawn
-	defense:log("Spawn " .. monster.description .. " (" .. group_size .. " " ..  monster.name .. ") at " .. minetest.pos_to_string(pos))
-	repeat
-		minetest.after(group_size * (math.random() * 0.2), function()
-			local obj = minetest.add_entity(pos, monster.name)
-		end)
-		group_size = group_size - 1
-	until group_size <= 0
-	spawn_timers[monster.description] = monster.spawn_time
-	return true
-end
-
 local function find_spawn_position(spawn_location_type)
 	local players = minetest.get_connected_players()
 	if #players == 0 then
@@ -203,6 +177,46 @@ local function find_spawn_position(spawn_location_type)
 	return nil
 end
 
+local function spawn_monsters()
+	-- Filter eligible monsters
+	local filtered = {}
+	for _,m in ipairs(director.spawn_list) do
+		if spawn_timers[m.description] <= 0
+			and defense.get_day_count() >= m.day_start
+			and math.random() < m.probability
+			and director.intensity >= m.intensity_min
+			and director.intensity <= m.intensity_max then
+			table.insert(filtered, m)
+		end
+	end
+	if #filtered == 0 then
+		return false
+	end
+	local monster = filtered[math.random(#filtered)]
+
+	-- Determine group size
+	local intr = math.max(0, math.min(1, director.intensity + math.random() * 2 - 1))
+	local group_size = math.floor(0.5 + monster.group_max + (monster.group_min - monster.group_max) * intr)
+
+	-- Find the spawn position
+	local pos = find_spawn_position(monster.spawn_location_type)
+	if not pos then
+		defense:log("No spawn point found for " .. monster.description .. "!")
+		return false
+	end
+
+	-- Spawn
+	defense:log("Spawn " .. monster.description .. " (" .. group_size .. " " ..  monster.name .. ") at " .. minetest.pos_to_string(pos))
+	repeat
+		minetest.after(group_size * (math.random() * 0.2), function()
+			local obj = minetest.add_entity(pos, monster.name)
+		end)
+		group_size = group_size - 1
+	until group_size <= 0
+	spawn_timers[monster.description] = monster.spawn_time
+	return true
+end
+
 local function update_intensity()
 	local players = minetest.get_connected_players()
 	if #players == 0 then
@@ -241,7 +255,6 @@ local function update()
 		end
 	else
 		director.cooldown_timer = director.cooldown_timer - director.update_interval
-		defense:log("Cooldown: " .. director.cooldown_timer)
 	end
 
 	for k,v in pairs(spawn_timers) do

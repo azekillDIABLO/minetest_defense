@@ -17,3 +17,7 @@ math.sign = math.sign or function(x)
 		return 0
 	end
 end
+
+vector.aim = function(a, b)
+	return vector.normalize(vector.subtract(b, a))
+end
