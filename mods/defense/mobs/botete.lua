@@ -145,7 +145,7 @@ defense.mobs.register_mob("defense:botete", {
 
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
-		if self.last_attack_time + self.attack_interval * 0.5 < self.timer or self.last_attack_time + 0.5 > self.timer then
+		if self.last_attack_time + self.attack_interval * 0.5 < self.timer or self.last_attack_time + 0.25 > self.timer then
 			self:hunt()
 		elseif not self.destination then
 			self.destination = vector.add(self.object:getpos(), {x=math.random(-10,10), y=math.random(-5,6), z=math.random(-10,10)})

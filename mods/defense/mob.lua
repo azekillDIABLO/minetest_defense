@@ -387,7 +387,7 @@ function mobs.move_method:ground(dtime, destination)
 			x=math.cos(r_angle)*r_radius,
 			y=0,
 			z=math.sin(r_angle)*r_radius
-		})
+	})
 	end
 
 	-- Compute smoothing factor
@@ -414,7 +414,7 @@ function mobs.move_method:ground(dtime, destination)
 	local jump = nil
 	if self.smart_path then
 		local p = self.object:getpos()
-		if destination.y - p.y > 1 + dist then
+		if destination.y > p.y + 0.5 and destination.y - p.y > dist then
 			jump = vector.aim(self.object:getpos(), destination)
 		end
 	else

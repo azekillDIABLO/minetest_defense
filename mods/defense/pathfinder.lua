@@ -7,7 +7,8 @@ pathfinder.max_distance = 100
 pathfinder.class_names = {}
 
 local classes = {}
-local next_sector_id = 1
+local sector_id_counter = 0
+local tmp_vec = vector.new()
 
 local reg_nodes = minetest.registered_nodes
 local neighbors = {
@@ -18,6 +19,13 @@ local neighbors = {
 	{x = 0, y = 0, z =-1},
 	{x = 0, y = 0, z = 1},
 }
+
+local function pos_key(x, y, z)
+	tmp_vec.x = x
+	tmp_vec.y = y
+	tmp_vec.z = z
+	return minetest.hash_node_position(tmp_vec)
+end
 
 -- Returns object {surface=[min_x,min_y,min_z,max_x,max_y,max_z], normal={x,y,z}}
 local function compute_sector_interface(sector1, sector2)
@@ -105,8 +113,11 @@ local function invalidate_sector(sector, class)
 		l.links[id] = nil
 	end
 
-	Queue.push(class.sector_seeds, {sector.min_x,sector.min_y,sector.min_z, nil,0})
-	-- TODO what if replacement seed is blocked?
+	if sector.distance ~= nil and sector.distance <= pathfinder.max_distance then
+		Queue.push(class.sector_seeds, {sector.min_x,sector.min_y,sector.min_z, nil,0})
+		-- TODO what if replacement seed is blocked?
+	end
+
 end
 
 local function invalidate_containing_sector(class, x, y, z)
@@ -184,17 +195,10 @@ local function find_sector_exits(sector, class)
 	}
 
 	local path_check = class.path_check
-	local tmp_vec = vector.new()
-	local function path_check_i(x, y, z)
-		tmp_vec.x = x
-		tmp_vec.y = y
-		tmp_vec.z = z
-		return path_check(class, tmp_vec, nil)
-	end
 
 	local exits = {}
 
-	-- Find passable nodes that are cornered by >=2 different sector or passability nodes
+	-- Find passable nodes that are cornered by >=2 different sectors or passability
 	for i,s in ipairs(sides) do
 		local xs = s[1]
 		local ys = s[2]
@@ -212,45 +216,27 @@ local function find_sector_exits(sector, class)
 			for y = min_y,max_y,ys do
 				for x = min_x,max_x,xs do
 
-					tmp_vec.x = x
-					tmp_vec.y = y
-					tmp_vec.z = z
-					local hash = minetest.hash_node_position(tmp_vec)
+					local hash = pos_key(x, y, z)
 
 					-- TODO Supply parent pos to path_check
-					if path_check_i(x, y, z) then
+					if path_check(class, vector.new(x, y, z), nil) then
 
 						local val = 0
-						local sector = find_containing_sector(class, x, y, z)
-						if sector then
-							val = sector.id
+						local esec = find_containing_sector(class, x, y, z)
+						if esec then
+							val = esec.id
 						end
 
 						local edges = 0
 						
-						if xs ~= 0 then
-							tmp_vec.x = x - xs
-							tmp_vec.y = y
-							tmp_vec.z = z
-							if val ~= map[minetest.hash_node_position(tmp_vec)] then
-								edges = edges + 1
-							end
+						if xs ~= 0 and val ~= map[pos_key(x-xs, y, z)] then
+							edges = edges + 1
 						end
-						if ys ~= 0 then
-							tmp_vec.x = x
-							tmp_vec.y = y - ys
-							tmp_vec.z = z
-							if val ~= map[minetest.hash_node_position(tmp_vec)] then
-								edges = edges + 1
-							end
+						if ys ~= 0 and val ~= map[pos_key(x, y-ys, z)] then
+							edges = edges + 1
 						end
-						if zs ~= 0 then
-							tmp_vec.x = x
-							tmp_vec.y = y
-							tmp_vec.z = z - zs
-							if val ~= map[minetest.hash_node_position(tmp_vec)] then
-								edges = edges + 1
-							end
+						if zs ~= 0 and val ~= map[pos_key(x, y, z-zs)] then
+							edges = edges + 1
 						end
 
 						if edges >= 2 then
@@ -278,86 +264,205 @@ local function generate_sector(class, x, y, z, origin_dir)
 	local max_sector_span = pathfinder.max_sector_size - 1
 	local path_check = class.path_check
 
-	local min_x = -math.huge
-	local min_y = -math.huge
-	local min_z = -math.huge
-	local max_x = math.huge
-	local max_y = math.huge
-	local max_z = math.huge
+	local hmss = math.floor(max_sector_span / 2)
+	local hmss2 = math.ceil(max_sector_span / 2)
+	local span_min_x = x - hmss
+	local span_min_y = y - hmss
+	local span_min_z = z - hmss
+	local span_max_x = x + hmss2
+	local span_max_y = y + hmss2
+	local span_max_z = z + hmss2
 
-	local half_mss = math.floor(max_sector_span / 2)
-	local half_mss2 = math.ceil(max_sector_span / 2)
-	local size_min_x = x - half_mss
-	local size_min_y = y - half_mss
-	local size_min_z = z - half_mss
-	local size_max_x = x + half_mss2
-	local size_max_y = y + half_mss2
-	local size_max_z = z + half_mss2
+	local min_x = x
+	local min_y = y
+	local min_z = z
+	local max_x = x
+	local max_y = y
+	local max_z = z
 
-	local visited = {}
+
+	local passed = {}
 	local visit = Queue.new()
 
 	Queue.push(visit, {x=x,y=y,z=z})
-	visited[minetest.hash_node_position(visit[1])] = true
+	passed[pos_key(x, y, z)] = true
 
+	-- Flood fill all passable positions
 	while Queue.size(visit) > 0 do
 		local pos = Queue.pop(visit)
+		local px = pos.x
+		local py = pos.y
+		local pz = pos.z
 
 		for i,n in ipairs(neighbors) do
-			local nxt = vector.add(pos, n)
-			local nhash = minetest.hash_node_position(nxt)
-			local nx = nxt.x
-			local ny = nxt.y
-			local nz = nxt.z
+			if i ~= origin_dir then
+				local npos = vector.add(pos, n)
+				local nx = npos.x
+				local ny = npos.y
+				local nz = npos.z
 
-			if not visited[nhash]
-			   and nx <= max_x and nx >= min_x
-			   and ny <= max_y and ny >= min_y
-			   and nz <= max_z and nz >= min_z then
-				visited[nhash] = true
+				local nhash = pos_key(nx, ny, nz)
+				if not passed[nhash]
+				   and (n.x == math.sign(nx - x) -- Only spread outward
+				        or n.y == math.sign(ny - y) 
+				        or n.z == math.sign(nz - z))
+				   and nx >= span_min_x and nx <= span_max_x -- Limit to max_sector_span
+				   and ny >= span_min_y and ny <= span_max_y
+				   and nz >= span_min_z and nz <= span_max_z then
 
-				local passable = path_check(class, nxt, pos)
-
-				if passable == nil then return nil end
-
-				if passable and origin_dir ~= i
-				   and not find_containing_sector(class, nx, ny, nz)
-				   and nx <= size_max_x and nx >= size_min_x
-				   and ny <= size_max_y and ny >= size_min_y
-				   and nz <= size_max_z and nz >= size_min_z then
-					Queue.push(visit, nxt)
-				else
-					if i == 1 then
-						min_x = pos.x
-						size_max_x = min_x + max_sector_span
-					elseif i == 2 then
-						max_x = pos.x
-						size_min_x = max_x - max_sector_span
-					elseif i == 3 then
-						min_y = pos.y
-						size_max_y = min_y + max_sector_span
-					elseif i == 4 then
-						max_y = pos.y
-						size_min_y = max_y - max_sector_span
-					elseif i == 5 then
-						min_z = pos.z
-						size_max_z = min_z + max_sector_span
-					elseif i == 6 then
-						max_z = pos.z
-						size_min_z = max_z - max_sector_span
+					local pass = path_check(class, npos, pos)
+					if pass == nil then return nil end
+					if pass and not find_containing_sector(class, nx, ny, nz) then
+						Queue.push(visit, npos)
+						passed[nhash] = true
+						min_x = math.min(min_x, nx)
+						min_y = math.min(min_y, ny)
+						min_z = math.min(min_z, nz)
+						max_x = math.max(max_x, nx)
+						max_y = math.max(max_y, ny)
+						max_z = math.max(max_z, nz)
 					end
-				end
 
+				end
 			end
 		end
+	end
+	defense:log("P " .. x .. "," ..y .. "," .. z)
+	defense:log("S " .. min_x .. "," ..min_y .. "," .. min_z .. "; " .. max_x .. "," .. max_y .. "," .. max_z)
 
+
+	-- Find the largest passable box
+	--[[ Using dynamic programming:
+		
+		S(x,y,z) = { 1 + min S(x-a,y-b,z-c) for 1 <= a+b+c <= 3 and max(x,y,z) == 1,  if passable(x,y)
+		
+		The largest cube is the maximum S, with the top-right-far corner at (x,y,z) in which the maximum S value is found.
+		Using the largest cube as the starting point, the largest box can be found by finding equal and adjacent S values.
+	]]
+	local x_stride = 1
+	local y_stride = max_x - min_x + 2
+	local z_stride = (max_y - min_y + 2) * y_stride
+
+	-- Compute S
+	local s_matrix = {}
+	local s_max = 0
+
+	local index = z_stride
+	for iz = min_z,max_z do
+		index = index + y_stride
+		for iy = min_y,max_y do
+			index = index + x_stride
+			for ix = min_x,max_x do
+
+				if passed[pos_key(ix, iy, iz)] then
+					local s = 1 + math.min(
+						s_matrix[index - x_stride] or 0,
+						s_matrix[index - y_stride] or 0,
+						s_matrix[index - z_stride] or 0,
+						s_matrix[index - x_stride - y_stride] or 0,
+						s_matrix[index - x_stride - z_stride] or 0,
+						s_matrix[index - y_stride - z_stride] or 0,
+						s_matrix[index - x_stride - y_stride - z_stride] or 0)
+					s_matrix[index] = s
+					s_max = math.max(s_max, s)
+				else
+					s_matrix[index] = 0
+				end
+
+				index = index + 1
+			end
+		end
+	end
+	defense:log("s_max " .. s_max)
+
+	-- Starting at (x,y,z), go "upstream" until a corner is found
+	max_x, max_y, max_z = x, y, z
+	index = (max_z - min_z + 1) * z_stride + (max_y - min_y + 1) * y_stride + (max_x - min_x + 1) * x_stride
+	while true do
+		local s = s_matrix[index] or 0
+		if (s_matrix[index + x_stride + y_stride + z_stride] or -1) >= s then
+			index = index + x_stride + y_stride + z_stride
+			max_x = max_x + 1
+			max_y = max_y + 1
+			max_z = max_z + 1
+		elseif (s_matrix[index + x_stride + y_stride] or -1) >= s then
+			index = index + x_stride + y_stride
+			max_x = max_x + 1
+			max_y = max_y + 1
+		elseif (s_matrix[index + x_stride + z_stride] or -1) >= s then
+			index = index + x_stride + z_stride
+			max_x = max_x + 1
+			max_z = max_z + 1
+		elseif (s_matrix[index + y_stride + z_stride] or -1) >= s then
+			index = index + y_stride + z_stride
+			max_y = max_y + 1
+			max_z = max_z + 1
+		elseif (s_matrix[index + x_stride] or -1) >= s then
+			index = index + x_stride
+			max_x = max_x + 1
+		elseif (s_matrix[index + y_stride] or -1) >= s then
+			index = index + y_stride
+			max_y = max_y + 1
+		elseif (s_matrix[index + z_stride] or -1) >= s then
+			index = index + z_stride
+			max_z = max_z + 1
+		else
+			break
+		end
 	end
 
-	local id = next_sector_id
-	next_sector_id = next_sector_id + 1
-	
+	-- (max_x,max_y,max_z) is now a corner of a cube
+	local base_size = s_matrix[index]
+
+	-- Compute extended dimensions
+	local w, h, l = 0, 0, 0
+	for iw = 1,max_sector_span do
+		if s_matrix[index - iw * x_stride] ~= base_size then break end
+		w = iw
+	end
+	for ih = 1,max_sector_span do
+		if s_matrix[index - ih * y_stride] ~= base_size then break end
+		h = ih
+	end
+	for il = 1,max_sector_span do
+		if s_matrix[index - il * z_stride] ~= base_size then break end
+		l = il
+	end
+
+	-- Compute final bounds (cube base size + extended dimensions)
+	min_x = max_x - base_size + 1
+	min_y = max_y - base_size + 1
+	min_z = max_z - base_size + 1
+	local max_dim = math.max(w,h,l)
+	if max_dim == w then
+		min_x = min_x - w
+		if s_matrix[index - x_stride - y_stride] == base_size then
+			min_y = min_y - h
+		elseif s_matrix[index - x_stride - z_stride] == base_size then
+			min_z = min_z - l
+		end
+	elseif max_dim == h then
+		min_y = min_y - h
+		if s_matrix[index - y_stride - x_stride] == base_size then
+			min_x = min_x - w
+		elseif s_matrix[index - y_stride - z_stride] == base_size then
+			min_z = min_z - l
+		end
+	elseif max_dim == l then
+		min_z = min_z - l
+		if s_matrix[index - z_stride - x_stride] == base_size then
+			min_x = min_x - w
+		elseif s_matrix[index - z_stride - y_stride] == base_size then
+			min_y = min_y - h
+		end
+	end
+
+	defense:log("base_size " .. s_max .. " " .. w .. "," .. h .. "," .. l)
+
+	sector_id_counter = sector_id_counter + 1
+	defense:log("Create " .. sector_id_counter)
 	return {
-		id = id,
+		id = sector_id_counter,
 		distance = nil,
 		links = {},
 		min_x = min_x,
@@ -425,6 +530,7 @@ local function update_class(class)
 	local sector_seeds = class.sector_seeds
 	local path_check = class.path_check
 
+	local force_generate = 0
 	local should_refresh_distances = false
 
 	-- Generate new seeds from player positions
@@ -437,6 +543,7 @@ local function update_class(class)
 			if not sector then
 				Queue.push_back(sector_seeds, {x,y,z, nil,0})
 				should_refresh_distances = true
+				force_generate = force_generate + 1
 			else
 				local distance = sector.distance
 				if distance == nil or distance > 0 then
@@ -452,8 +559,8 @@ local function update_class(class)
 		sector_count = sector_count + 1
 	end
 
-	local unready_seeds = {}
-	local target_sector_count = math.min(sector_count + math.max(math.ceil(100 / (math.log(sector_count + 10))), 1), max_sector_count)
+	local sectors_to_generate = math.max(math.ceil(10 / math.log(sector_count + 10)), 1)
+	local target_sector_count = math.min(sector_count + sectors_to_generate, max_sector_count) + force_generate
 	while sector_count < target_sector_count and Queue.size(sector_seeds) > 0 do
 		local seed = Queue.pop(sector_seeds)
 		local x = seed[1]
@@ -465,34 +572,34 @@ local function update_class(class)
 			local new_sector = generate_sector(class, x, y, z, seed[5])
 			local parent = seed[4]
 
-			if new_sector and (not parent or parent.distance == nil or parent.distance < max_distance) then
-				local id = new_sector.id
-				sectors[id] = new_sector
-				sector_count = sector_count + 1
+			if new_sector then
+				should_refresh_distances = true
 
-				-- Link parent
-				if parent then
-					new_sector.links[parent.id] = parent
-					parent.links[id] = new_sector
-				end
+				if not parent or parent.distance == nil or parent.distance < max_distance then
+					local id = new_sector.id
+					sectors[id] = new_sector
+					sector_count = sector_count + 1
 
-				-- Generate new seeds and link adjacent sectors
-				local exits = find_sector_exits(new_sector, class)
-				for i,e in ipairs(exits) do
-					local exited_sector = find_containing_sector(class, e[1], e[2], e[3])
-					if exited_sector then
-						if not exited_sector.links[new_sector.id] then
-							exited_sector.links[new_sector.id] = new_sector
-							new_sector.links[exited_sector.id] = exited_sector
+					-- Link parent
+					if parent then
+						new_sector.links[parent.id] = parent
+						parent.links[id] = new_sector
+					end
+
+					-- Generate new seeds and link adjacent sectors
+					local exits = find_sector_exits(new_sector, class)
+					for _,e in ipairs(exits) do
+						local exited_sector = find_containing_sector(class, e[1], e[2], e[3])
+						if exited_sector then
+							if not exited_sector.links[new_sector.id] then
+								exited_sector.links[new_sector.id] = new_sector
+								new_sector.links[exited_sector.id] = exited_sector
+							end
+						else
+							Queue.push(sector_seeds, e)
 						end
-					else
-						Queue.push(sector_seeds, e)
 					end
 				end
-
-				should_refresh_distances = true
-			else
-				table.insert(unready_seeds, seed)
 			end
 		end
 
@@ -503,10 +610,7 @@ local function update_class(class)
 		calculate_distances(class)
 	end
 
-	-- Requeue seeds outside of loaded area
-	for _,s in ipairs(unready_seeds) do
-		Queue.push(sector_seeds, s)
-	end
+	-- TODO Reseed far exits
 
 	defense:log(class.name .. ": There are " .. sector_count .. " sectors, " .. Queue.size(sector_seeds) .. " seeds.")
 
@@ -556,15 +660,13 @@ end
 
 -- Path checks
 
-pathfinder.default_path_check = {}
-function pathfinder.default_path_check.air(class, pos, parent)
-	local tmp_vec = vector.new()
+local function path_check_common(class, pos)
 	for z = pos.z, pos.z + class.z_size - 1 do
+		tmp_vec.z = z
 		for y = pos.y, pos.y + class.y_size - 1 do
+			tmp_vec.y = y
 			for x = pos.x, pos.x + class.x_size - 1 do
 				tmp_vec.x = x
-				tmp_vec.y = y
-				tmp_vec.z = z
 				local node = minetest.get_node_or_nil(tmp_vec)
 				if not node then return nil end
 				if reg_nodes[node.name].walkable then
@@ -575,42 +677,39 @@ function pathfinder.default_path_check.air(class, pos, parent)
 	end
 	return true
 end
+
+pathfinder.default_path_check = {}
+function pathfinder.default_path_check.air(class, pos, parent)
+	return path_check_common(class, pos)
+end
 function pathfinder.default_path_check.ground(class, pos, parent)
-	local tmp_vec = vector.new()
-	for z = pos.z, pos.z + class.z_size - 1 do
-		for y = pos.y, pos.y + class.y_size - 1 do
-			for x = pos.x, pos.x + class.x_size - 1 do
-				tmp_vec.x = x
-				tmp_vec.y = y
-				tmp_vec.z = z
-				local node = minetest.get_node_or_nil(tmp_vec)
-				if not node then return nil end
-				if reg_nodes[node.name].walkable then
-					return false
-				end
-			end
-		end
+	if not path_check_common(class, pos) then
+		return false
 	end
 
 	-- Find ground
-	for z = pos.z - 1, pos.z + class.z_size do
-		for x = pos.x - 1, pos.x + class.x_size do
-			local ledge_distance = math.abs(x - pos.x) + math.abs(z - pos.z)
+	local vertical = parent == nil or (pos.x == parent.x and pos.z == parent.z)
+	for z = pos.z, pos.z + class.z_size - 1 do
+		tmp_vec.z = z
+		for x = pos.x, pos.x + class.x_size - 1 do
+			tmp_vec.x = x
+
 			local last_walkable = false
 			for y = pos.y, pos.y - class.jump_height - 1, -1 do
-				tmp_vec.x = x
 				tmp_vec.y = y
-				tmp_vec.z = z
 				local node = minetest.get_node_or_nil(tmp_vec)
 				if not node then return nil end
 
 				local walkable = reg_nodes[node.name].walkable
-				if y < pos.y and ledge_distance < pos.y - y
-				   and walkable and not last_walkable then
-					return true
+				if y < pos.y and walkable and not last_walkable then
+					local ground_dist = pos.y - y
+					if ground_dist == 1 or (ground_dist > 1 and vertical) then
+						return true
+					end
 				end
 				last_walkable = walkable
 			end
+
 		end
 	end
 
@@ -713,9 +812,12 @@ function pathfinder:get_waypoint(class_name, x, y, z)
 		y = math.max(surface[2], math.min(surface[5], gy)),
 		z = math.max(surface[3], math.min(surface[6], gz))
 	}
-	local distance = vector.distance(waypoint, {x=x,y=y,z=z})
-	local waypoint_offset = math.min(1, math.max(-1, 1 - distance))
-	return to_world_pos(class, vector.add(waypoint, vector.multiply(normal, waypoint_offset)))
+
+	local delta = vector.subtract({x=x,y=y,z=z}, waypoint)
+	local directed_distance = vector.dot(normal, delta) / vector.length(normal)
+	local waypoint_offset = vector.multiply(normal, math.max(-1, math.min(1, directed_distance + 1)))
+
+	return to_world_pos(class, vector.add(waypoint, waypoint_offset))
 end
 
 

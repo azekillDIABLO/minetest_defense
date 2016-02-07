@@ -21,6 +21,7 @@ defense.mobs.register_mob("defense:paniki", {
 
 	last_hp = 3,
 	flee_timer = 0,
+	flee_timer = 0,
 
 	on_step = function(self, dtime)
 		defense.mobs.default_prototype.on_step(self, dtime)
@@ -32,7 +33,7 @@ defense.mobs.register_mob("defense:paniki", {
 			delta.x = delta.x - delta.z * 0.4
 			delta.z = delta.z + x * 0.4
 			self.destination = vector.add(pos, delta)
-			if self.flee_timer > 0 then
+			if self.flee_timer > 0 and self.last_attack_time + 0.25 < self.timer then
 				self.flee_timer = self.flee_timer - dtime
 			end
 		else
