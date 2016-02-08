@@ -32,6 +32,7 @@ mobs.default_prototype = {
 	-- cache
 	cache_is_standing = nil,
 	cache_find_nearest_player = nil,
+	cache_calculate_wall_normal = nil,
 }
 
 local reg_nodes = minetest.registered_nodes
@@ -49,6 +50,7 @@ end
 function mobs.default_prototype:on_step(dtime)
 	self.cache_is_standing = nil
 	self.cache_find_nearest_player = nil
+	self.cache_calculate_wall_normal = nil
 
 	if self.pause_timer <= 0 then
 		if self.destination then
@@ -304,17 +306,27 @@ function mobs.default_prototype:find_nearest_player()
 end
 
 function mobs.default_prototype:calculate_wall_normal()
+	if self.cache_calculate_wall_normal ~= nil then
+		return self.cache_calculate_wall_normal
+	end
+
 	local p = self.object:getpos()
 	local normals = {1,0,-1}
-	local xs = {self.collisionbox[1]-0.5,0,self.collisionbox[4]+0.5}
-	local ys = {self.collisionbox[2]-0.5,0,self.collisionbox[5]+0.5}
-	local zs = {self.collisionbox[3]-0.5,0,self.collisionbox[6]+0.5}
+	local w1 = self.collisionbox[1]
+	local h1 = self.collisionbox[2]
+	local l1 = self.collisionbox[3]
+	local w2 = self.collisionbox[4]
+	local h2 = self.collisionbox[5]
+	local l2 = self.collisionbox[6]
+	local xs = {w1 - 0.05, (w1 + w2) / 2, w2 + 0.05}
+	local ys = {h1 - 0.05, (h1 + h2) / 2, h2 + 0.05}
+	local zs = {l1 - 0.05, (l1 + l2) / 2, l2 + 0.05}
 
 	local normal = vector.new()
 	local count = 0
-	for xi=1,3 do
+	for zi=1,3 do
 		for yi=1,3 do
-			for zi=1,3 do
+			for xi=1,3 do
 				if xi ~= 2 and yi ~= 2 and zi ~= 2 then
 					local sp = vector.add(p, {x=xs[xi], y=ys[yi], z=zs[zi]})
 					local node = minetest.get_node_or_nil(sp)
@@ -327,8 +339,10 @@ function mobs.default_prototype:calculate_wall_normal()
 		end
 	end
 
-	if count > 0 then
-		return vector.normalize(normal)
+	if vector.length(normal) > 0 then
+		local ret = vector.normalize(normal)
+		self.cache_calculate_wall_normal = ret
+		return ret
 	else
 		return nil
 	end
@@ -351,7 +365,7 @@ function mobs.move_method:air(dtime, destination)
 		})
 	end
 
-	-- Compute smoothing factor
+	-- Compute speed and smoothing factor
 	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
@@ -390,7 +404,7 @@ function mobs.move_method:ground(dtime, destination)
 	})
 	end
 
-	-- Compute smoothing factor
+	-- Compute speed and smoothing factor
 	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
@@ -455,7 +469,25 @@ function mobs.move_method:crawl(dtime, destination)
 	local delta = vector.subtract(destination, self.object:getpos())
 	local dist = vector.length(delta)
 
-	-- Compute smoothing factor
+	-- Make delta vector align with the surface and point slightly into it
+	if self:is_standing() then
+		local wall = self:calculate_wall_normal()
+		if wall and dist > 0 then
+			local surface_dir = vector.add(delta, vector.multiply(wall, -vector.dot(wall, delta)))
+			local surface_dir_len = vector.length(surface_dir)
+			if surface_dir_len > 0 then
+				delta = vector.add(
+					vector.multiply(surface_dir, dist / surface_dir_len),
+					vector.multiply(wall, -0.1))
+			else
+				delta = vec_zero()
+			end
+			dist = vector.length(delta)
+		end
+	end
+	
+
+	-- Compute speed and smoothing factor
 	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
 	local t
 	local v = self.object:getvelocity()
@@ -466,18 +498,10 @@ function mobs.move_method:crawl(dtime, destination)
 		speed = speed * 0.9
 	end
 
-	-- Compute direction based on wall
-	local wall = self:calculate_wall_normal()
-	if wall and dist > 0 then
-		local dot = math.abs(wall.x * delta.x + wall.y * delta.y + wall.z * delta.z)
-		delta = vector.add(delta, vector.multiply(wall, -dot))
-	end
-
 	-- Compute and set resulting velocity
-	local dir = vector.normalize(delta)
 	local v2 = vector.add(
 		vector.multiply(v, t),
-		vector.multiply(dir, speed * (1-t))
+		vector.multiply(dist > 0 and vector.normalize(delta) or vec_zero(), speed * (1-t))
 	)
 	self.object:setvelocity(v2)
 

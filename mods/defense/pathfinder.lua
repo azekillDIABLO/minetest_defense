@@ -327,8 +327,6 @@ local function generate_sector(class, x, y, z, origin_dir)
 			end
 		end
 	end
-	defense:log("P " .. x .. "," ..y .. "," .. z)
-	defense:log("S " .. min_x .. "," ..min_y .. "," .. min_z .. "; " .. max_x .. "," .. max_y .. "," .. max_z)
 
 
 	-- Find the largest passable box
@@ -373,45 +371,54 @@ local function generate_sector(class, x, y, z, origin_dir)
 			end
 		end
 	end
-	defense:log("s_max " .. s_max)
 
-	-- Starting at (x,y,z), go "upstream" until a corner is found
+	-- Starting at (x,y,z), go up the S gradient until a corner is found
+	local edge_x, edge_y, edge_z = false, false, false
 	max_x, max_y, max_z = x, y, z
 	index = (max_z - min_z + 1) * z_stride + (max_y - min_y + 1) * y_stride + (max_x - min_x + 1) * x_stride
 	while true do
 		local s = s_matrix[index] or 0
-		if (s_matrix[index + x_stride + y_stride + z_stride] or -1) >= s then
+		if (s_matrix[index + x_stride + y_stride + z_stride] or -1) > s and not (edge_x or edge_y or edge_z) then
 			index = index + x_stride + y_stride + z_stride
 			max_x = max_x + 1
 			max_y = max_y + 1
 			max_z = max_z + 1
-		elseif (s_matrix[index + x_stride + y_stride] or -1) >= s then
+		elseif (s_matrix[index + x_stride + y_stride] or -1) > s and not (edge_x or edge_y) then
 			index = index + x_stride + y_stride
 			max_x = max_x + 1
 			max_y = max_y + 1
-		elseif (s_matrix[index + x_stride + z_stride] or -1) >= s then
+			edge_z = true
+		elseif (s_matrix[index + x_stride + z_stride] or -1) > s and not (edge_x or edge_z) then
 			index = index + x_stride + z_stride
 			max_x = max_x + 1
 			max_z = max_z + 1
-		elseif (s_matrix[index + y_stride + z_stride] or -1) >= s then
+			edge_y = true
+		elseif (s_matrix[index + y_stride + z_stride] or -1) > s and not (edge_y or edge_z) then
 			index = index + y_stride + z_stride
 			max_y = max_y + 1
 			max_z = max_z + 1
-		elseif (s_matrix[index + x_stride] or -1) >= s then
+			edge_x = true
+		elseif (s_matrix[index + x_stride] or -1) >= s and not edge_x then
 			index = index + x_stride
 			max_x = max_x + 1
-		elseif (s_matrix[index + y_stride] or -1) >= s then
+			edge_y = true
+			edge_z = true
+		elseif (s_matrix[index + y_stride] or -1) >= s and not edge_y then
 			index = index + y_stride
 			max_y = max_y + 1
-		elseif (s_matrix[index + z_stride] or -1) >= s then
+			edge_x = true
+			edge_z = true
+		elseif (s_matrix[index + z_stride] or -1) >= s and not edge_z then
 			index = index + z_stride
 			max_z = max_z + 1
+			edge_x = true
+			edge_y = true
 		else
 			break
 		end
 	end
 
-	-- (max_x,max_y,max_z) is now a corner of a cube
+	-- (max_x,max_y,max_z) or [index] is now a corner of a cube
 	local base_size = s_matrix[index]
 
 	-- Compute extended dimensions
@@ -457,10 +464,8 @@ local function generate_sector(class, x, y, z, origin_dir)
 		end
 	end
 
-	defense:log("base_size " .. s_max .. " " .. w .. "," .. h .. "," .. l)
 
 	sector_id_counter = sector_id_counter + 1
-	defense:log("Create " .. sector_id_counter)
 	return {
 		id = sector_id_counter,
 		distance = nil,
@@ -718,6 +723,47 @@ function pathfinder.default_path_check.ground(class, pos, parent)
 	return false
 end
 function pathfinder.default_path_check.crawl(class, pos, parent)
+	if not path_check_common(class, pos) then
+		return false
+	end
+
+	-- Find wall
+	local x, y, z = pos.x, pos.y, pos.z
+	local xs, ys, zs = class.x_size, class.y_size, class.z_size
+	local xm, ym, zm = math.floor(xs/2), math.floor(ys/2), math.floor(zs/2)
+
+	-- TODO Cache this table per crawl class
+	-- If >=1 hooks are attached to wall, pathable
+	local crawl_hooks = {
+		{x = x - 1, y = y - 1, z = z + zm},
+		{x = x - 1, y = y + ym, z = z - 1},
+		{x = x - 1, y = y + ym, z = z + zm},
+		{x = x - 1, y = y + ym, z = z + zs},
+		{x = x - 1, y = y + ys, z = z + zm},
+		{x = x + xm, y = y - 1, z = z - 1},
+		{x = x + xm, y = y - 1, z = z + zm},
+		{x = x + xm, y = y - 1, z = z + zs},
+		{x = x + xm, y = y + ym, z = z - 1},
+		{x = x + xm, y = y + ym, z = z + zs},
+		{x = x + xm, y = y + ys, z = z - 1},
+		{x = x + xm, y = y + ys, z = z + zm},
+		{x = x + xm, y = y + ys, z = z + zs},
+		{x = x + xs, y = y - 1, z = z + zm},
+		{x = x + xs, y = y + ym, z = z - 1},
+		{x = x + xs, y = y + ym, z = z + zm},
+		{x = x + xs, y = y + ym, z = z + zs},
+		{x = x + xs, y = y + ys, z = z + zm},
+	}
+
+	for _,h in ipairs(crawl_hooks) do
+		local node = minetest.get_node_or_nil(h)
+		if not node then return nil end
+		
+		if reg_nodes[node.name].walkable then
+			return true
+		end
+	end
+
 	return false
 end
 
@@ -733,7 +779,7 @@ pathfinder.find_containing_sector = find_containing_sector -- For debug
 -- Registers a pathfinder class
 function pathfinder:register_class(class_name, properties)
 	table.insert(pathfinder.class_names, class_name)
-	classes[class_name] = {
+	local class = {
 		name = class_name,
 		sectors = {},
 		sector_seeds = Queue.new(),
@@ -748,6 +794,7 @@ function pathfinder:register_class(class_name, properties)
 		y_size = math.ceil(properties.collisionbox[5] - properties.collisionbox[2]),
 		z_size = math.ceil(properties.collisionbox[6] - properties.collisionbox[3]),
 	}
+	classes[class_name] = class
 end
 
 -- Returns the destination for an entity of class class_name at position (x,y,z) to get to the nearest player
