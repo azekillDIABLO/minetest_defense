@@ -329,7 +329,7 @@ local function generate_sector(class, x, y, z, origin_dir)
 	end
 
 
-	-- Find the largest passable box
+	-- Find the largest passable box (or cuboid)
 	--[[ Using dynamic programming:
 		
 		S(x,y,z) = { 1 + min S(x-a,y-b,z-c) for 1 <= a+b+c <= 3 and max(x,y,z) == 1,  if passable(x,y)
@@ -343,7 +343,6 @@ local function generate_sector(class, x, y, z, origin_dir)
 
 	-- Compute S
 	local s_matrix = {}
-	local s_max = 0
 
 	local index = z_stride
 	for iz = min_z,max_z do
@@ -362,7 +361,6 @@ local function generate_sector(class, x, y, z, origin_dir)
 						s_matrix[index - y_stride - z_stride] or 0,
 						s_matrix[index - x_stride - y_stride - z_stride] or 0)
 					s_matrix[index] = s
-					s_max = math.max(s_max, s)
 				else
 					s_matrix[index] = 0
 				end
@@ -373,42 +371,50 @@ local function generate_sector(class, x, y, z, origin_dir)
 	end
 
 	-- Starting at (x,y,z), go up the S gradient until a corner is found
-	local edge_x, edge_y, edge_z = false, false, false
 	max_x, max_y, max_z = x, y, z
 	index = (max_z - min_z + 1) * z_stride + (max_y - min_y + 1) * y_stride + (max_x - min_x + 1) * x_stride
 	while true do
 		local s = s_matrix[index] or 0
-		if (s_matrix[index + x_stride + y_stride + z_stride] or -1) > s and not (edge_x or edge_y or edge_z) then
+		if (s_matrix[index + x_stride + y_stride + z_stride] or -1) > s then
 			index = index + x_stride + y_stride + z_stride
 			max_x = max_x + 1
 			max_y = max_y + 1
 			max_z = max_z + 1
-		elseif (s_matrix[index + x_stride + y_stride] or -1) > s and not (edge_x or edge_y) then
+		else
+			break
+		end
+	end
+	-- (max_x,max_y,max_z) or [index] is now at a corner of a cube
+	local base_size = s_matrix[index]
+	-- Now go to the corner of the box (not cube)
+	local edge_x, edge_y, edge_z = false, false, false
+	while true do
+		if (s_matrix[index + x_stride + y_stride] or -1) == base_size and not (edge_x or edge_y) then
 			index = index + x_stride + y_stride
 			max_x = max_x + 1
 			max_y = max_y + 1
 			edge_z = true
-		elseif (s_matrix[index + x_stride + z_stride] or -1) > s and not (edge_x or edge_z) then
+		elseif (s_matrix[index + x_stride + z_stride] or -1) == base_size and not (edge_x or edge_z) then
 			index = index + x_stride + z_stride
 			max_x = max_x + 1
 			max_z = max_z + 1
 			edge_y = true
-		elseif (s_matrix[index + y_stride + z_stride] or -1) > s and not (edge_y or edge_z) then
+		elseif (s_matrix[index + y_stride + z_stride] or -1) == base_size and not (edge_y or edge_z) then
 			index = index + y_stride + z_stride
 			max_y = max_y + 1
 			max_z = max_z + 1
 			edge_x = true
-		elseif (s_matrix[index + x_stride] or -1) >= s and not edge_x then
+		elseif (s_matrix[index + x_stride] or -1) == base_size and not edge_x then
 			index = index + x_stride
 			max_x = max_x + 1
 			edge_y = true
 			edge_z = true
-		elseif (s_matrix[index + y_stride] or -1) >= s and not edge_y then
+		elseif (s_matrix[index + y_stride] or -1) == base_size and not edge_y then
 			index = index + y_stride
 			max_y = max_y + 1
 			edge_x = true
 			edge_z = true
-		elseif (s_matrix[index + z_stride] or -1) >= s and not edge_z then
+		elseif (s_matrix[index + z_stride] or -1) == base_size and not edge_z then
 			index = index + z_stride
 			max_z = max_z + 1
 			edge_x = true
@@ -417,9 +423,7 @@ local function generate_sector(class, x, y, z, origin_dir)
 			break
 		end
 	end
-
-	-- (max_x,max_y,max_z) or [index] is now a corner of a cube
-	local base_size = s_matrix[index]
+	-- (max_x,max_y,max_z) or [index] is now at a corner of the sector to generate
 
 	-- Compute extended dimensions
 	local w, h, l = 0, 0, 0

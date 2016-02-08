@@ -142,7 +142,7 @@ function mobs.default_prototype:move(dtime, destination)
 	mobs.move_method[self.movement](self, dtime, destination)
 end
 
--- Sets the appropriate destination point for the goal of attacking the player
+-- Attack the player
 function mobs.default_prototype:hunt()
 	local nearest = self:find_nearest_player()
 
@@ -153,11 +153,13 @@ function mobs.default_prototype:hunt()
 
 		if nearest.distance > self.attack_range or nearest.distance < self.attack_range/2-1 then
 			local pos = self.object:getpos()	
+
+			local smart_dest = nil
 			if self.smart_path then
-				self.destination = defense.pathfinder:get_waypoint(self.name, pos.x, pos.y, pos.z)
+				smart_dest = defense.pathfinder:get_waypoint(self.name, pos.x, pos.y, pos.z)
 			end
 
-			if not self.destination then
+			if not smart_dest then
 				local r = math.max(0, self.attack_range - 2)
 				local dir = vector.aim(nearest.position, pos)
 				self.destination = vector.add(nearest.position, vector.multiply(dir, r))
@@ -369,15 +371,15 @@ function mobs.move_method:ground(dtime, destination)
 
 	-- Check for jump
 	local jump = nil
+	local pos = self.object:getpos()
 	if self.smart_path then
-		local p = self.object:getpos()
-		if destination.y > p.y + 0.5 and destination.y - p.y > dist then
-			jump = vector.aim(self.object:getpos(), destination)
+		if destination.y > pos.y + 0.5 and destination.y - pos.y > dist then
+			jump = vector.aim(pos, destination)
 		end
 	else
 		if dist > 1 then
 			-- Jump over obstacles
-			local p = self.object:getpos()
+			local p = vector.new(pos)
 			p.y = p.y + self.collisionbox[2] + 0.5
 			local sx = self.collisionbox[4] - self.collisionbox[1]
 			local sz = self.collisionbox[6] - self.collisionbox[3]
@@ -391,10 +393,12 @@ function mobs.move_method:ground(dtime, destination)
 			for _,f in ipairs(fronts) do
 				local node = minetest.get_node_or_nil(vector.add(p, f))
 				if not node or reg_nodes[node.name].walkable then
-					jump = vector.aim(self.object:getpos(), destination)
+					jump = vector.aim(pos, destination)
 					break
 				end
 			end
+		elseif destination.y > pos.y + 1 then
+			jump = vector.aim(pos, destination)
 		end
 	end
 
