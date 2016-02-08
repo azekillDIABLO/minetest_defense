@@ -41,5 +41,3 @@ dofile2("mobs/paniki.lua")
 dofile2("mobs/botete.lua")
 
 dofile2("debug.lua")
-
-defense:toggle_debug(true)

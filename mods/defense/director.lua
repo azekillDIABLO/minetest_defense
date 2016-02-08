@@ -43,18 +43,6 @@ director.spawn_list = {
 		spawn_location_type = "ground",
 	},
 	{
-		description = "Aranay group",
-		name = "defense:aranay",
-		intensity_min = 0.0,
-		intensity_max = 0.5,
-		group_min = 1,
-		group_max = 2,
-		probability = 0.3,
-		day_start = 0,
-		spawn_time = 18.0,
-		spawn_location_type = "ground",
-	},
-	{
 		description = "Paniki group",
 		name = "defense:paniki",
 		intensity_min = 0.0,
