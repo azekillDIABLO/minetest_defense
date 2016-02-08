@@ -655,12 +655,6 @@ function pathfinder.default_cost_method.ground(class, src_sector, dst_sector)
 	end
 	return math.sqrt(dx*dx + dz*dz) + dy
 end
-function pathfinder.default_cost_method.crawl(class, src_sector, dst_sector)
-	local dx = ((dst_sector.min_x + dst_sector.max_x) - (src_sector.min_x + src_sector.max_x)) / 2
-	local dy = ((dst_sector.min_y + dst_sector.max_y) - (src_sector.min_y + src_sector.max_y)) / 2
-	local dz = ((dst_sector.min_z + dst_sector.max_z) - (src_sector.min_z + src_sector.max_z)) / 2
-	return math.abs(dx) + math.abs(dy) + math.abs(dz)
-end
 
 
 -- Path checks
@@ -719,50 +713,6 @@ function pathfinder.default_path_check.ground(class, pos, parent)
 	end
 
 	-- TODO How to allow falls?
-
-	return false
-end
-function pathfinder.default_path_check.crawl(class, pos, parent)
-	if not path_check_common(class, pos) then
-		return false
-	end
-
-	-- Find wall
-	local x, y, z = pos.x, pos.y, pos.z
-	local xs, ys, zs = class.x_size, class.y_size, class.z_size
-	local xm, ym, zm = math.floor(xs/2), math.floor(ys/2), math.floor(zs/2)
-
-	-- TODO Cache this table per crawl class
-	-- If >=1 hooks are attached to wall, pathable
-	local crawl_hooks = {
-		{x = x - 1, y = y - 1, z = z + zm},
-		{x = x - 1, y = y + ym, z = z - 1},
-		{x = x - 1, y = y + ym, z = z + zm},
-		{x = x - 1, y = y + ym, z = z + zs},
-		{x = x - 1, y = y + ys, z = z + zm},
-		{x = x + xm, y = y - 1, z = z - 1},
-		{x = x + xm, y = y - 1, z = z + zm},
-		{x = x + xm, y = y - 1, z = z + zs},
-		{x = x + xm, y = y + ym, z = z - 1},
-		{x = x + xm, y = y + ym, z = z + zs},
-		{x = x + xm, y = y + ys, z = z - 1},
-		{x = x + xm, y = y + ys, z = z + zm},
-		{x = x + xm, y = y + ys, z = z + zs},
-		{x = x + xs, y = y - 1, z = z + zm},
-		{x = x + xs, y = y + ym, z = z - 1},
-		{x = x + xs, y = y + ym, z = z + zm},
-		{x = x + xs, y = y + ym, z = z + zs},
-		{x = x + xs, y = y + ys, z = z + zm},
-	}
-
-	for _,h in ipairs(crawl_hooks) do
-		local node = minetest.get_node_or_nil(h)
-		if not node then return nil end
-		
-		if reg_nodes[node.name].walkable then
-			return true
-		end
-	end
 
 	return false
 end

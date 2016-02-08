@@ -13,7 +13,7 @@ mobs.default_prototype = {
 	id = 0, -- Automatically set
 	smart_path = true, -- Use the pathfinder
 	mass = 1,
-	movement = "ground", -- "ground"/"air"/"crawl"
+	movement = "ground", -- "ground"/"air"
 	move_speed = 1,
 	jump_height = 1,
 	armor = 0,
@@ -32,7 +32,6 @@ mobs.default_prototype = {
 	-- cache
 	cache_is_standing = nil,
 	cache_find_nearest_player = nil,
-	cache_calculate_wall_normal = nil,
 }
 
 local reg_nodes = minetest.registered_nodes
@@ -50,7 +49,6 @@ end
 function mobs.default_prototype:on_step(dtime)
 	self.cache_is_standing = nil
 	self.cache_find_nearest_player = nil
-	self.cache_calculate_wall_normal = nil
 
 	if self.pause_timer <= 0 then
 		if self.destination then
@@ -67,13 +65,6 @@ function mobs.default_prototype:on_step(dtime)
 
 	if self.movement ~= "air" and not self:is_standing() then
 		self:set_animation("fall", {"jump", "attack", "move_attack"})
-	end
-	if self.movement == "crawl" then
-		if self:is_standing() then
-			self.object:setacceleration(vec_zero())
-		else
-			self.object:setacceleration({x=0, y=mobs.gravity, z=0})
-		end
 	end
 
 	-- Die when morning comes
@@ -228,12 +219,6 @@ function mobs.default_prototype:is_standing()
 		return false
 	end
 
-	if self.movement == "crawl" then
-		local ret = self:calculate_wall_normal() ~= nil
-		self.cache_is_standing = ret
-		return ret
-	end
-
 	if self.object:getvelocity().y ~= 0 then
 		self.cache_is_standing = false
 		return false
@@ -305,48 +290,6 @@ function mobs.default_prototype:find_nearest_player()
 	return ret
 end
 
-function mobs.default_prototype:calculate_wall_normal()
-	if self.cache_calculate_wall_normal ~= nil then
-		return self.cache_calculate_wall_normal
-	end
-
-	local p = self.object:getpos()
-	local normals = {1,0,-1}
-	local w1 = self.collisionbox[1]
-	local h1 = self.collisionbox[2]
-	local l1 = self.collisionbox[3]
-	local w2 = self.collisionbox[4]
-	local h2 = self.collisionbox[5]
-	local l2 = self.collisionbox[6]
-	local xs = {w1 - 0.05, (w1 + w2) / 2, w2 + 0.05}
-	local ys = {h1 - 0.05, (h1 + h2) / 2, h2 + 0.05}
-	local zs = {l1 - 0.05, (l1 + l2) / 2, l2 + 0.05}
-
-	local normal = vector.new()
-	local count = 0
-	for zi=1,3 do
-		for yi=1,3 do
-			for xi=1,3 do
-				if xi ~= 2 and yi ~= 2 and zi ~= 2 then
-					local sp = vector.add(p, {x=xs[xi], y=ys[yi], z=zs[zi]})
-					local node = minetest.get_node_or_nil(sp)
-					if node and reg_nodes[node.name].walkable then
-						normal = vector.add(normal, {x=normals[xi], y=normals[yi], z=normals[zi]})
-						count = count + 1
-					end
-				end
-			end
-		end
-	end
-
-	if vector.length(normal) > 0 then
-		local ret = vector.normalize(normal)
-		self.cache_calculate_wall_normal = ret
-		return ret
-	else
-		return nil
-	end
-end
 
 -- Movement implementations for the default movement types
 mobs.move_method = {}
@@ -458,54 +401,6 @@ function mobs.move_method:ground(dtime, destination)
 	if jump then
 		self:jump(jump)
 	elseif self:is_standing() then
-		if speed > self.move_speed * 0.06 then
-			self:set_animation("move", {"move_attack"})
-		else
-			self:set_animation("idle", {"attack", "move_attack"})
-		end
-	end
-end
-function mobs.move_method:crawl(dtime, destination)
-	local delta = vector.subtract(destination, self.object:getpos())
-	local dist = vector.length(delta)
-
-	-- Make delta vector align with the surface and point slightly into it
-	if self:is_standing() then
-		local wall = self:calculate_wall_normal()
-		if wall and dist > 0 then
-			local surface_dir = vector.add(delta, vector.multiply(wall, -vector.dot(wall, delta)))
-			local surface_dir_len = vector.length(surface_dir)
-			if surface_dir_len > 0 then
-				delta = vector.add(
-					vector.multiply(surface_dir, dist / surface_dir_len),
-					vector.multiply(wall, -0.1))
-			else
-				delta = vec_zero()
-			end
-			dist = vector.length(delta)
-		end
-	end
-	
-
-	-- Compute speed and smoothing factor
-	local speed = self.move_speed * math.max(0, math.min(1, 1.2 * dist))
-	local t
-	local v = self.object:getvelocity()
-	if self:is_standing() and vector.length(v) < self.move_speed * 4 then
-		t = math.pow(0.001, dtime)
-	else
-		t = math.pow(0.4, dtime)
-		speed = speed * 0.9
-	end
-
-	-- Compute and set resulting velocity
-	local v2 = vector.add(
-		vector.multiply(v, t),
-		vector.multiply(dist > 0 and vector.normalize(delta) or vec_zero(), speed * (1-t))
-	)
-	self.object:setvelocity(v2)
-
-	if self:is_standing() then
 		if speed > self.move_speed * 0.06 then
 			self:set_animation("move", {"move_attack"})
 		else
